@@ -45,23 +45,15 @@ namespace ldso {
 
             // xy 到 idepth 的导数
             float d_d_x, d_d_y;
-<<<<<<< HEAD
-
-=======
             // 计算// J_geo, J_photo, 对应论文的公式13
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
             {
                 float drescale, u, v, new_idepth;  // data in target
                 // NOTE u = X/Z, v=Y/Z in target
                 float Ku, Kv;
                 Vec3f KliP;
 
-<<<<<<< HEAD
-                // 重投影
-=======
                 // 计算J_geo 需要在使用线性化点的
                 //  重投影
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
                 shared_ptr<PointHessian> p = point.lock();
                 if (!projectPoint(p->u, p->v, p->idepth_zero_scaled, 0, 0, HCalib,
                                   PRE_RTll_0, PRE_tTll_0, drescale, u, v, Ku, Kv, KliP, new_idepth)) {
@@ -113,10 +105,6 @@ namespace ldso {
                 d_xi_y[5] = u * HCalib->fyl();
             }
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
             {
                 J->Jpdxi[0] = d_xi_x;
                 J->Jpdxi[1] = d_xi_y;
@@ -134,11 +122,7 @@ namespace ldso {
             float JabJab_00 = 0, JabJab_01 = 0, JabJab_11 = 0;
 
             float wJI2_sum = 0;
-<<<<<<< HEAD
-
-=======
             // 计算计算一个pattern中的J_I, notice 计算J_photo, 光度残差需要在当前状态求解
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
             for (int idx = 0; idx < patternNum; idx++) {
                 float Ku, Kv;
                 shared_ptr<PointHessian> p = point.lock();
@@ -169,20 +153,12 @@ namespace ldso {
                 energyLeft += w * w * hw * residual * residual * (2 - hw);
 
                 {
-<<<<<<< HEAD
-                    if (hw < 1) hw = sqrtf(hw);
-=======
                     if (hw < 1) hw = sqrtf(hw); // TODO： 为什么要开根号
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
                     hw = hw * w;
 
                     hitColor[1] *= hw;
                     hitColor[2] *= hw;
-<<<<<<< HEAD
-
-=======
                     // 存储pattern中每个元素的的光度残差、像素梯度和对光度系数的导数
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
                     J->resF[idx] = residual * hw;
 
                     J->JIdx[0][idx] = hitColor[1];
@@ -204,11 +180,7 @@ namespace ldso {
                     JabJab_11 += hw * hw;
 
                     wJI2_sum += hw * hw * (hitColor[1] * hitColor[1] + hitColor[2] * hitColor[2]);
-<<<<<<< HEAD
-
-=======
                     // if setting_affineOptModeA less than 0, we don't optimize photometric parameters
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
                     if (setting_affineOptModeA < 0) J->JabF[0][idx] = 0;
                     if (setting_affineOptModeB < 0) J->JabF[1][idx] = 0;
 
@@ -229,12 +201,8 @@ namespace ldso {
             J->Jab2(1, 1) = JabJab_11;
 
             state_NewEnergyWithOutlier = energyLeft;
-<<<<<<< HEAD
-
-=======
             // outlier and occlusion detection see point management, See Outlier and
             // Occlusion Detection in Point Management
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
             if (energyLeft > std::max<float>(f->frameEnergyTH, ftarget->frameEnergyTH) || wJI2_sum < 2) {
                 energyLeft = std::max<float>(f->frameEnergyTH, ftarget->frameEnergyTH);
                 state_NewState = ResState::OUTLIER;
@@ -262,11 +230,7 @@ namespace ldso {
             __m128 delta_b = _mm_set1_ps((float) (dp[7]));
 
             for (int i = 0; i < patternNum; i += 4) {
-<<<<<<< HEAD
-                // PATTERN: rtz = resF - [JI*Jp Ja]*delta.
-=======
                 // PATTERN: rtz = resF - [JI*Jp Ja Jb]*delta.
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
                 __m128 rtz = _mm_load_ps(((float *) &J->resF) + i);
                 rtz = _mm_sub_ps(rtz, _mm_mul_ps(_mm_load_ps(((float *) (J->JIdx)) + i), Jp_delta_x));
                 rtz = _mm_sub_ps(rtz, _mm_mul_ps(_mm_load_ps(((float *) (J->JIdx + 1)) + i), Jp_delta_y));
