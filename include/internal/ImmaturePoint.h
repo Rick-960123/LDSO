@@ -30,7 +30,7 @@ namespace ldso {
          */
         enum ImmaturePointStatus {
             IPS_GOOD = 0,               // traced well and good
-            IPS_OOB,                    // OOB: end tracking & marginalize!
+            IPS_OOB,                    // OOB: end tracking & marginalize! out of boundary
             IPS_OUTLIER,                // energy too high: if happens again: outlier!
             IPS_SKIPPED,                // traced well and good (but not actually traced).
             IPS_BADCONDITION,           // not traced because of bad condition.
@@ -60,7 +60,7 @@ namespace ldso {
 
             /**
              * Trace the immature point in a new frame
-             * @param frame
+             * @param frame target frame
              * @param hostToFrame_KRKi
              * @param hostToFrame_Kt
              * @param hostToFrame_affine
@@ -73,7 +73,7 @@ namespace ldso {
                     const Vec2f &hostToFrame_affine, shared_ptr<CalibHessian> HCalib);
 
             /**
-             * compute the energy of the residuals and jacobians
+             * compute the energy of the residuals and jacobians w.r.t inverse depth
              * @param HCalib
              * @param outlierTHSlack
              * @param tmpRes

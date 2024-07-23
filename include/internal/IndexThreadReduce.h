@@ -23,6 +23,7 @@ namespace ldso {
          * @tparam Running
          */
         template<typename Running>
+        // 这个实现的多线程reduce 有点问题，并不能很好的把任务分给多个线程,有可能一个线程完成主要的任务
         class IndexThreadReduce {
 
         public:
@@ -32,7 +33,7 @@ namespace ldso {
                 callPerIndex = bind(&IndexThreadReduce::callPerIndexDefault, this, _1, _2, _3, _4);
                 for (int i = 0; i < NUM_THREADS; i++) {
                     isDone[i] = false;
-                    gotOne[i] = true;
+                    gotOne[i] = true;  // this is unuseful viariable
                     workerThreads[i] = thread(&IndexThreadReduce::workerLoop, this, i);
                 }
 
@@ -41,9 +42,9 @@ namespace ldso {
             inline ~IndexThreadReduce() {
                 running = false;
 
-                exMutex.lock();
-                todo_signal.notify_all();
-                exMutex.unlock();
+                exMutex.lock();           // this is not useful
+                todo_signal.notify_all(); // let thread pool start up
+                exMutex.unlock();         // this is not useful
 
                 for (int i = 0; i < NUM_THREADS; i++)
                     workerThreads[i].join();
@@ -54,7 +55,9 @@ namespace ldso {
             }
 
             inline void
-            reduce(function<void(int, int, Running *, int)> callPerIndex, int first, int end, int stepSize = 0) {
+            // void (int, int, Runing *, int) -> (min, max, status, thread id)
+            reduce(function<void(int, int, Running *, int)> callPerIndex, int first, int end, int stepSize = 0) 
+            {
 
                 memset(&stats, 0, sizeof(Running));
 
@@ -72,11 +75,11 @@ namespace ldso {
                 // go worker threads!
                 for (int i = 0; i < NUM_THREADS; i++) {
                     isDone[i] = false;
-                    gotOne[i] = false;
+                    gotOne[i] = false;   // TODO: this is unuseful
                 }
 
                 // let them start!
-                todo_signal.notify_all();
+                todo_signal.notify_all(); //bring up thread pool
 
 
                 // wait for all worker threads to signal they are done.
@@ -151,7 +154,7 @@ namespace ldso {
                         stats += s;
                     } // otherwise wait on signal, releasing lock in the meantime.
                     else {
-                        if (!gotOne[idx]) {
+                        if (!gotOne[idx]) {                 //this is unuseful
                             lock.unlock();
                             assert(callPerIndex != 0);
                             Running s;

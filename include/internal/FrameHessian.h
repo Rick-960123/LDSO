@@ -88,7 +88,10 @@ namespace ldso {
                 PRE_worldToCam = SE3::exp(w2c_leftEps()) * get_worldToCam_evalPT();
                 PRE_camToWorld = PRE_worldToCam.inverse();
             };
-
+            /**
+             * \brief 设置后端优化所用具有scale(权重)属性的变量的值
+             * @param state_scaled
+             */
             inline void setStateScaled(const Vec10 &state_scaled) {
 
                 this->state_scaled = state_scaled;
@@ -126,9 +129,13 @@ namespace ldso {
              */
             void makeImages(float *image, const shared_ptr<CalibHessian> &HCalib);
 
+            // 设置先验
             inline Vec10 getPrior() {
                 Vec10 p = Vec10::Zero();
+                // 第一帧会设置几何先验和光度先验
+                // 如果使用SOLVER_REMOVE_POSEPRIOR 求解模式,不会给第一帧添加几何参数先验
                 if (frame->id == 0) {
+
                     p.head<3>() = Vec3::Constant(setting_initialTransPrior);
                     p.segment<3>(3) = Vec3::Constant(setting_initialRotPrior);
                     if (setting_solverMode & SOLVER_REMOVE_POSEPRIOR) {
@@ -137,6 +144,7 @@ namespace ldso {
                     p[6] = setting_initialAffAPrior;
                     p[7] = setting_initialAffBPrior;
                 } else {
+                //  其他帧设置光度先验
                     if (setting_affineOptModeA < 0) {
                         p[6] = setting_initialAffAPrior;
                     } else {
@@ -205,11 +213,12 @@ namespace ldso {
             // ======================================================================================== //
             // Energy stuffs
             // Frame status: 6 dof pose + 2 dof light param
-            void takeData();        // take data from frame hessian
+            void takeData();                       // take data from frame hessian
+
             Vec8 prior = Vec8::Zero();             // prior hessian (diagonal)
             Vec8 delta_prior = Vec8::Zero();       // = state-state_prior (E_prior = (delta_prior)' * diag(prior) * (delta_prior)
             Vec8 delta = Vec8::Zero();             // state - state_zero.
-            int idx = 0;                         // the id in the sliding window, used for constructing matricies
+            int idx = 0;                           // the id in the sliding window, used for constructing matricies
 
         };
     }

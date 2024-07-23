@@ -103,7 +103,8 @@ namespace ldso {
             //                                           aff_g2l_current).cast<float>();
 
             // L-M iteration
-            for (int iteration = 0; iteration < maxIterations[lvl]; iteration++) {
+            for (int iteration = 0; iteration < maxIterations[lvl]; iteration++) 
+            {
                 Mat88 Hl = H;
                 for (int i = 0; i < 8; i++) Hl(i, i) *= (1 + lambda);
                 Vec8 inc = Hl.ldlt().solve(-b);
@@ -121,6 +122,7 @@ namespace ldso {
                 }
                 if (setting_affineOptModeA < 0 && !(setting_affineOptModeB < 0))    // fix a
                 {
+                    // erase a 
                     Mat88 HlStitch = Hl;
                     Vec8 bStitch = b;
                     HlStitch.col(6) = HlStitch.col(7);
@@ -187,7 +189,7 @@ namespace ldso {
             lastFlowIndicators = resOld.segment<3>(2);
             if (lastResiduals[lvl] > 1.5 * minResForAbort[lvl])
                 return false;
-
+            // the photometric error is bigger, then need optimization
             // repeat this level level
             if (levelCutoffRepeat > 1 && !haveRepeated) {
                 lvl++;
@@ -461,7 +463,7 @@ namespace ldso {
         float sumSquaredShiftT = 0;
         float sumSquaredShiftRT = 0;
         float sumSquaredShiftNum = 0;
-
+        // huber(e) = 2*k*error - k*k
         float maxEnergy = 2 * setting_huberTH * cutoffTH -
                           setting_huberTH * setting_huberTH;    // energy for r=setting_coarseCutoffTH.
 
@@ -472,7 +474,8 @@ namespace ldso {
         float *lpc_color = pc_color[lvl];
 
 
-        for (int i = 0; i < nl; i++) {
+        for (int i = 0; i < nl; i++) 
+        {
             float id = lpc_idepth[i];
             float x = lpc_u[i];
             float y = lpc_v[i];
@@ -525,7 +528,7 @@ namespace ldso {
             float residual = hitColor[0] - (float) (affLL[0] * refColor + affLL[1]);
             float hw = fabs(residual) < setting_huberTH ? 1 : setting_huberTH / fabs(residual);
 
-
+            // 
             if (fabs(residual) > cutoffTH) {
                 E += maxEnergy;
                 numTermsInE++;
@@ -595,7 +598,7 @@ namespace ldso {
             __m128 v = _mm_load_ps(buf_warped_v + i);
             __m128 id = _mm_load_ps(buf_warped_idepth + i);
 
-
+            // 10 
             acc.updateSSE_eighted(
                     _mm_mul_ps(id, dx),
                     _mm_mul_ps(id, dy),
@@ -607,7 +610,9 @@ namespace ldso {
                             _mm_mul_ps(_mm_mul_ps(u, v), dy),
                             _mm_mul_ps(dx, _mm_add_ps(one, _mm_mul_ps(u, u)))),
                     _mm_sub_ps(_mm_mul_ps(u, dy), _mm_mul_ps(v, dx)),
+                    //da_j         
                     _mm_mul_ps(a, _mm_sub_ps(b0, _mm_load_ps(buf_warped_refColor + i))),
+                    //db_j
                     minusOne,
                     _mm_load_ps(buf_warped_residual + i),
                     _mm_load_ps(buf_warped_weight + i));
@@ -686,6 +691,7 @@ namespace ldso {
     void CoarseDistanceMap::makeDistanceMap(std::vector<shared_ptr<FrameHessian>> &frameHessians,
                                             shared_ptr<FrameHessian> frame) {
 
+        // step1 设置距离图fwdWarpedIDDistFinal中元素的初值为一个比较大的数1000
         int w1 = w[1];
         int h1 = h[1];
         int wh1 = w1 * h1;
@@ -695,31 +701,34 @@ namespace ldso {
 
         // make coarse tracking templates for latstRef.
         int numItems = 0;
-
+        // step2 enumerate frameHessians except frame
         for (auto fh : frameHessians) {
             if (frame == fh) continue;
-
+            // step2.1 calculate projection geometry parameters
             SE3 fhToNew = frame->PRE_worldToCam * fh->PRE_camToWorld;
             Mat33f KRKi = (K[1] * fhToNew.rotationMatrix().cast<float>() * Ki[0]);
             Vec3f Kt = (K[1] * fhToNew.translation().cast<float>());
-
+            // step2.2 enumerate active point in fh
             for (auto feat: fh->frame->features) {
                 if (feat->point && feat->point->status == Point::PointStatus::ACTIVE) {
+                    // step2.3 calculate project point of active point -> feat
                     auto ph = feat->point->mpPH;
                     Vec3f ptp = KRKi * Vec3f(ph->u, ph->v, 1) + Kt * ph->idepth_scaled;
                     int u = ptp[0] / ptp[2] + 0.5f;
                     int v = ptp[1] / ptp[2] + 0.5f;
                     if (!(u > 0 && v > 0 && u < w[1] && v < h[1])) continue;
+                    // step2.3 set value of fwdWarpedIDDistFinal in valid  projected point 0
                     fwdWarpedIDDistFinal[u + w1 * v] = 0;
+                    // step2.4 将合法的投影点加入到bfsList1, 投影点计数器numItems++
                     bfsList1[numItems] = Eigen::Vector2i(u, v);
                     numItems++;
                 }
             }
         }
-
+        // step3: 使用广度优先生成距离图
         growDistBFS(numItems);
     }
-
+    // TODO
     void CoarseDistanceMap::growDistBFS(int bfsNum) {
 
         assert(w[0] != 0);

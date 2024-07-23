@@ -23,6 +23,7 @@ namespace ldso {
 
     void Frame::ReleaseFH() {
         if (frameHessian) {
+            //reset the the frame ptr holded in frameHessian to minus of counter of the pointers of the frame to avoid cycle reference  
             frameHessian->frame = nullptr;
             frameHessian = nullptr;
         }

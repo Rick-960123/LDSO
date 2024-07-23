@@ -8,7 +8,16 @@
 namespace ldso {
 
     namespace internal {
-
+        // dd = [dx, dy][fx/Z, 0,    -fx X/Z^2] *[tx]
+        //              [ 0    fy/Y, -fy Y/Z^2]  [ty]
+        //                                       [tz]
+        //    = [fxdx, fydy]* 1/Z * [1, 0 -X/Z] * [tx]
+        //                          [0, 1,-Y/Z]   [ty]
+        //                                        [tz]
+        //    = [fxdx, fydy] *[1, 0, -u ] * [tx] * 1/Z
+        //                    [0, 1, -v ]   [ty]
+        //                                  [tz]
+        // notice SCALE_IDEPTH 表示 1/Z
         EIGEN_STRONG_INLINE float derive_idepth(
                 const Vec3f &t, const float &u, const float &v,
                 const int &dx, const int &dy, const float &dxInterp,
@@ -33,7 +42,7 @@ namespace ldso {
         }
 
         // equation:
-        // K[u,v]^T = 1/d ( K R K^{-1} [u_p, v_p, 1]^T + K t ) * rescale
+        // [u,v]^T =  ( K R K^{-1} [u_p, v_p, 1]^T + K t*idepth )/ptp[2];
         //                < ------------ ptp --------------- >
         /**
          * Project one point from host to target
@@ -67,16 +76,20 @@ namespace ldso {
                     (v_pt + dy - HCalib->cyl()) * HCalib->fyli(),
                     1);
 
+            // [ptp, 1]^T = [R, t ] * [Klip ]
+            //              [0  1 ]   [idepth]
             Vec3f ptp = R * KliP + t * idepth;
             drescale = 1.0f / ptp[2];
+            // 计算3d点在target frame 中的新的逆深度
             new_idepth = idepth * drescale;
 
             if (!(drescale > 0)) {
                 return false;
             }
-
+            // 计算3d点在单位相平面的投影点
             u = ptp[0] * drescale;
             v = ptp[1] * drescale;
+            // 将单位相平面的点转化为相平面的点
             Ku = u * HCalib->fxl() + HCalib->cxl();
             Kv = v * HCalib->fyl() + HCalib->cyl();
 

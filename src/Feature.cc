@@ -25,6 +25,7 @@ namespace ldso {
 
     void Feature::ReleaseImmature() {
         if (ip) {
+            // notice the order of the reset
             ip->feature = nullptr;
             ip = nullptr;
         }

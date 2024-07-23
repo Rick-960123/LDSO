@@ -134,7 +134,11 @@ namespace ldso {
         CoarseDistanceMap(int w, int h);
 
         ~CoarseDistanceMap();
-
+        /**
+         * \brief 生成距离图, 将滑窗中除最新帧之外的帧拥有的激活点投影到当前帧的第1层,生成粗略的距离图
+         * @param frameHessians 滑窗中的frame 对应的frameHessians
+         * @param frame 最新帧
+         */
         void makeDistanceMap(
                 std::vector<shared_ptr<FrameHessian>>& frameHessians,
                 shared_ptr<FrameHessian> frame);
@@ -165,6 +169,10 @@ namespace ldso {
         Eigen::Vector2i *bfsList1;
         Eigen::Vector2i *bfsList2;
 
+        /**
+         * \brief 采用广度优先算法计算距离图
+         * @param bfsNum 投影点的个数
+         */
         void growDistBFS(int bfsNum);
     };
 }

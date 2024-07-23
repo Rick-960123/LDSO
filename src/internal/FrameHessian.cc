@@ -113,8 +113,11 @@ namespace ldso {
         }
 
         void FrameHessian::takeData() {
+            // 计算先验
             prior = getPrior().head<8>();
+            // 计算当前状态相对与线性化点的偏移
             delta = get_state_minus_stateZero().head<8>();
+            // 计算当前状态相对于线性化点的偏移, Notice: 先验的线性化点一直是0
             delta_prior = (get_state() - getPriorZero()).head<8>();
         }
     }

@@ -194,7 +194,9 @@ namespace ldso {
         void removeOutliers();
 
         /**
-         * set precalc values.
+         * \brief set precalc values.
+         * calculate the relative pose the photometric affine coefficient
+         * and calculate the increment the pose, the camera and inverse depth
          */
         void setPrecalcValues();
 
@@ -207,6 +209,7 @@ namespace ldso {
 
         /**
          * linearize all the residuals
+         * 计光度残差的雅克比矩阵J_I, J_geo, J_photo 和 error,同时剔除外点到I0, I1的约束
          * @param fixLinearization if true, fix the jacobians after this linearization
          * @return
          */
@@ -220,6 +223,15 @@ namespace ldso {
 
         /// step from the backup data
         /// called in optimization
+        /**
+         *
+         * @param stepfacC 相机内参增量更新的步长
+         * @param stepfacT 相机位姿平移分量更新的步长
+         * @param stepfacR 相机位姿旋转分量更新的步长
+         * @param stepfacA 光度仿射变化系数a增量更新的步长
+         * @param stepfacD 光度仿射变换系数b增量更新的步长
+         * @return 是否增量足够小
+         */
         bool doStepFromBackup(float stepfacC, float stepfacT, float stepfacR, float stepfacA, float stepfacD);
 
         /// set the current state into backup
@@ -229,13 +241,23 @@ namespace ldso {
         void loadSateBackup();
 
         /// energy computing functions, called in optimization
+        // calculate the point frame photometric error, L indicate landmark
         double calcLEnergy();
 
         /// energy computing functions, called in optimization
+        // calculate the marginalize prior error, M indicate marginalize
         double calcMEnergy();
 
         void applyRes_Reductor(bool copyJacobians, int min, int max, Vec10 *stats, int tid);
 
+        /**
+         * \brief 获取状态变量的零空间
+         * @param nullspaces_pose  pose state 的零空间
+         * @param nullspaces_scale pose state 尺度的零空间
+         * @param nullspaces_affA  affine transform cofficient A 的零空间
+         * @param nullspaces_affB  affine transform cofficient B 的零空间
+         * @return
+         */
         std::vector<VecX> getNullspaces(
             std::vector<VecX> &nullspaces_pose,
             std::vector<VecX> &nullspaces_scale,
@@ -299,7 +321,7 @@ namespace ldso {
         mutex coarseTrackerSwapMutex;            // if tracker sees that there is a new reference, tracker locks [coarseTrackerSwapMutex] and swaps the two.
         shared_ptr<CoarseTracker> coarseTracker_forNewKF = nullptr;            // set as as reference. protected by [coarseTrackerSwapMutex].
         shared_ptr<CoarseTracker> coarseTracker = nullptr;                    // always used to track new frames. protected by [trackMutex].
-
+        // mutex to lock frame read and write the pose of the frame
         mutex shellPoseMutex;
 
         // tracking / mapping synchronization. All protected by [trackMapSyncMutex].

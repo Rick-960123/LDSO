@@ -45,7 +45,7 @@ bool preload = false;
 bool useSampleOutput = false;
 
 using namespace ldso;
-
+// pengSLAM NO.1
 void settingsDefault(int preset) {
     printf("\n=============== PRESET Settings: ===============\n");
     if (preset == 0 || preset == 1) {

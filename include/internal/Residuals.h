@@ -51,8 +51,6 @@ namespace ldso {
                 resetOOB();
             }
 
-            virtual ~PointFrameResidual() = default;
-
             /**
              * linearize the reprojection, create jacobian matrices
              * @param HCalib
@@ -121,8 +119,21 @@ namespace ldso {
             bool isActiveAndIsGoodNEW = false;
 
             void takeData() {
+                // calculate Hessian block of the [pose, a, b]-[inverse depth]
+                //1. calcuate: H_pose_inversedepth
+                // JIdxi = JIdp*Jpdxi [1,6]
+                // JIdd = JIdp*Jpdd = [1,1]
+                // JpJdF[0:6] =  JIdxi.T * JIdd
+                //       = Jpdxi.T * JIdp.T * JIdp*Jpdd
+                //       = Jpdxi.T * JIdx2 * Jpdd
+                //       = Jpdxi.T * JI_JI_Jd  dimension: [6,2] * [2,1]
+                //2. calcuate H_ab_inversedepth
+                // JpJdF[6:8] = Jab^T * JIdx * Jpdd
+                //            = JabJIdx*Jpdd
+
                 Vec2f JI_JI_Jd = J->JIdx2 * J->Jpdd;
                 for (int i = 0; i < 6; i++)
+
                     JpJdF[i] = J->Jpdxi[0][i] * JI_JI_Jd[0] + J->Jpdxi[1][i] * JI_JI_Jd[1];
                 JpJdF.segment<2>(6) = J->JabJIdx * J->Jpdd;
             }

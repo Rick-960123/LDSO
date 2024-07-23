@@ -290,6 +290,11 @@ namespace ldso {
                 }
             }
         }
+
+
+
+
+
             // clean model selection implementation.
         else if (std::sscanf(l1.c_str(), "KannalaBrandt %f %f %f %f %f %f %f %f",
                              &ic[0], &ic[1], &ic[2], &ic[3],
@@ -418,22 +423,14 @@ namespace ldso {
                     yy -= yyi;
                     float xxyy = xx * yy;
 
-                    // get offset and check range
-                    int src_offset = xxi + yyi * wOrg;
-                    if (src_offset < 0 || src_offset > (hOrg-1)*wOrg) {
-                        // FIXME: check why the offset is out of range in the first place.
-                        // There might be other places which access invalid memory. Fix the source...
-                        out_data[idx] = 0;
-                    } else {
-                        // get array base pointer
-                        const float *src = in_data + src_offset;
+                    // get array base pointer
+                    const float *src = in_data + xxi + yyi * wOrg;
 
-                        // interpolate (bilinear)
-                        out_data[idx] = xxyy * src[1 + wOrg]
-                                        + (yy - xxyy) * src[wOrg]
-                                        + (xx - xxyy) * src[1]
-                                        + (1 - xx - yy + xxyy) * src[0];
-                    }
+                    // interpolate (bilinear)
+                    out_data[idx] = xxyy * src[1 + wOrg]
+                                    + (yy - xxyy) * src[wOrg]
+                                    + (xx - xxyy) * src[1]
+                                    + (1 - xx - yy + xxyy) * src[0];
                 }
             }
 

@@ -1,7 +1,6 @@
 # IDE files
 **/.idea
 **/CMakeLists.txt.user
-
 # build folders
 cmake-build-debug/*
 cmake-build-**

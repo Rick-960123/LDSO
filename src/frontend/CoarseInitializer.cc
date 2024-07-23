@@ -46,7 +46,7 @@ namespace ldso {
         alphaW = 150 * 150;
         regWeight = 0.8;
         couplingWeight = 1;
-
+        // if the translation is not enough big, then reset the status of the points
         if (!snapped) {
             thisToNext.translation().setZero();
             for (int lvl = 0; lvl < pyrLevelsUsed; lvl++) {
@@ -62,22 +62,26 @@ namespace ldso {
 
         SE3 refToNew_current = thisToNext;
         AffLight refToNew_aff_current = thisToNext_aff;
-
+        // coarse approximation.
         if (firstFrame->ab_exposure > 0 && newFrame->ab_exposure > 0)
             refToNew_aff_current = AffLight(logf(newFrame->ab_exposure / firstFrame->ab_exposure),
-                                            0); // coarse approximation.
+                                            0); 
 
-
+        
         Vec3f latestRes = Vec3f::Zero();
-        for (int lvl = pyrLevelsUsed - 1; lvl >= 0; lvl--) {
-
-
+        //optimization from coarse to fine 
+        for (int lvl = pyrLevelsUsed - 1; lvl >= 0; lvl--) 
+        {
+            // propagate down the idepth from 
             if (lvl < pyrLevelsUsed - 1)
                 propagateDown(lvl + 1);
 
             Mat88f H, Hsc;
             Vec8f b, bsc;
+            // assign the the energy of point to zero, and assign the idepth_new to idepth
+            // and use the neighbours to set the inverse depth of the current point
             resetPoints(lvl);
+            // calculates the residual and hessian block 
             Vec3f resOld = calcResAndGS(lvl, H, b, Hsc, bsc, refToNew_current, refToNew_aff_current, false);
             applyStep(lvl);
 
@@ -170,7 +174,7 @@ namespace ldso {
 
         frameID++;
         if (!snapped) snappedAt = 0;
-
+        // record the id of the begin of the translation
         if (snapped && snappedAt == 0)
             snappedAt = frameID;
 
@@ -184,6 +188,7 @@ namespace ldso {
             const SE3 &refToNew, AffLight refToNew_aff,
             bool plot) {
         int wl = w[lvl], hl = h[lvl];
+        //get reference image and new image
         Eigen::Vector3f *colorRef = firstFrame->dIp[lvl];
         Eigen::Vector3f *colorNew = newFrame->dIp[lvl];
 
@@ -260,13 +265,16 @@ namespace ldso {
 
 
                 float residual = hitColor[0] - r2new_aff[0] * rlR - r2new_aff[1];
+                // huberLossFunction
+                // huber(e) := 1/2e^2 for |e| less setting_huberTH
+                //             k|e| - 1/2|e| 
                 float hw = fabs(residual) < setting_huberTH ? 1 : setting_huberTH / fabs(residual);
                 energy += hw * residual * residual * (2 - hw);
 
-
+                // 
                 float dxdd = (t[0] - t[2] * u) / pt[2];
                 float dydd = (t[1] - t[2] * v) / pt[2];
-
+                // hw is sqrt()
                 if (hw < 1) hw = sqrtf(hw);
                 float dxInterp = hw * hitColor[1] * fxl;
                 float dyInterp = hw * hitColor[2] * fyl;
@@ -458,7 +466,7 @@ namespace ldso {
 
     }
 
-
+    //using Gaussian weight to concatenating the idepth
     void CoarseInitializer::propagateUp(int srcLvl) {
         assert(srcLvl + 1 < pyrLevelsUsed);
         // set idepth of target
@@ -491,7 +499,7 @@ namespace ldso {
                 parent->isGood = true;
             }
         }
-
+        // use the centermost to smmoth idepth
         optReg(srcLvl + 1);
     }
 
@@ -606,7 +614,7 @@ namespace ldso {
         }
         delete[] statusMap;
         delete[] statusMapB;
-
+        //  construct graph of the feature
         makeNN();
 
         thisToNext = SE3();
@@ -626,7 +634,8 @@ namespace ldso {
             pts[i].idepth_new = pts[i].idepth;
 
 
-            if (lvl == pyrLevelsUsed - 1 && !pts[i].isGood) {
+            if (lvl == pyrLevelsUsed - 1 && !pts[i].isGood) 
+            {
                 float snd = 0, sn = 0;
                 for (int n = 0; n < 10; n++) {
                     if (pts[i].neighbours[n] == -1 || !pts[pts[i].neighbours[n]].isGood) continue;
