@@ -25,10 +25,10 @@ using namespace ldso;
  * Please specify the dataset directory below or by command line parameters
  *********************************************************************************/
 
-std::string source = "/home/xiang/Dataset/EUROC/MH_01_easy/cam0";
-std::string output_file = "./results.txt";
-std::string calib = "./examples/EUROC/EUROC.txt";
-std::string vocPath = "./vocab/orbvoc.dbow3";
+std::string source = "/home/rick/Datasets/SN_00198/cam0/";
+std::string calib = "/home/rick/Datasets/SN_00198/camera_info.txt";
+std::string output_file = "/home/rick/lvi_ws/src/LDSO/results.txt";
+std::string vocPath = "/home/rick/lvi_ws/src/LDSO/vocab/orbvoc.dbow3";
 
 int startIdx = 0;
 int endIdx = 100000;

@@ -290,11 +290,6 @@ namespace ldso {
                 }
             }
         }
-
-
-
-
-
             // clean model selection implementation.
         else if (std::sscanf(l1.c_str(), "KannalaBrandt %f %f %f %f %f %f %f %f",
                              &ic[0], &ic[1], &ic[2], &ic[3],
