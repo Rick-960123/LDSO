@@ -40,11 +40,7 @@ namespace ldso {
 
         /*
          * returns
-<<<<<<< HEAD
-         * * OOB -> point is optimized and marginalized
-=======
          * * OOB -> point is optimized and marginalized  
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
          * * UPDATED -> point has been updated.
          * * SKIP -> point has not been updated.
          */
@@ -128,10 +124,7 @@ namespace ldso {
             }
 
             // set OOB if scale change too big.
-<<<<<<< HEAD
-=======
             // equal if(idepth_min > 0 && (ptpMin[2] > 1.5 || ptpMax[2] <0.75 ))
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
             if (!(idepth_min < 0 || (ptpMin[2] > 0.75 && ptpMin[2] < 1.5))) {
                 lastTraceUV = Vec2f(-1, -1);
                 lastTracePixelInterval = 0;
@@ -145,11 +138,7 @@ namespace ldso {
             float a = (Vec2f(dx, dy).transpose() * gradH * Vec2f(dx, dy));
             float b = (Vec2f(dy, -dx).transpose() * gradH * Vec2f(dy, -dx));
             float errorInPixel = 0.2f + 0.2f * (a + b) / a;
-<<<<<<< HEAD
-
-=======
             // setting_trace_minImprovementFactor -> 2
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
             if (errorInPixel * setting_trace_minImprovementFactor > dist && std::isfinite(idepth_max)) {
                 lastTraceUV = Vec2f(uMax + uMin, vMax + vMin) * 0.5;
                 lastTracePixelInterval = dist;
@@ -169,14 +158,9 @@ namespace ldso {
             }
 
             int numSteps = 1.9999f + dist / setting_trace_stepsize;
-<<<<<<< HEAD
-            Mat22f Rplane = hostToFrame_KRKi.topLeftCorner<2, 2>();
-
-=======
             // yaw 
             Mat22f Rplane = hostToFrame_KRKi.topLeftCorner<2, 2>();
             // reserve 0.0001
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
             float randShift = uMin * 1000 - floorf(uMin * 1000);
             float ptx = uMin - randShift * dx;
             float pty = vMin - randShift * dy;
@@ -196,11 +180,7 @@ namespace ldso {
             float bestU = 0, bestV = 0, bestEnergy = 1e10;
             int bestIdx = -1;
             if (numSteps >= 100) numSteps = 99;
-<<<<<<< HEAD
-
-=======
             // linear search 
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
             for (int i = 0; i < numSteps; i++) {
                 float energy = 0;
                 for (int idx = 0; idx < patternNum; idx++) {
@@ -230,11 +210,7 @@ namespace ldso {
                 pty += dy;
             }
 
-<<<<<<< HEAD
-
-=======
             // make sure bestIdx is the global optimal point
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
             // find best score outside a +-2px radius.
             float secondBest = 1e10;
             for (int i = 0; i < numSteps; i++) {
@@ -248,13 +224,6 @@ namespace ldso {
 
             // ============== do GN optimization ===================
             float uBak = bestU, vBak = bestV, gnstepsize = 1, stepBack = 0;
-<<<<<<< HEAD
-            if (setting_trace_GNIterations > 0) bestEnergy = 1e5;
-            int gnStepsGood = 0, gnStepsBad = 0;
-            for (int it = 0; it < setting_trace_GNIterations; it++) {
-                float H = 1, b = 0, energy = 0;
-                for (int idx = 0; idx < patternNum; idx++) {
-=======
             // setting_trace_GNIterations -> 3
             if (setting_trace_GNIterations > 0) bestEnergy = 1e5;
             int gnStepsGood = 0, gnStepsBad = 0;
@@ -263,17 +232,12 @@ namespace ldso {
                 float H = 1, b = 0, energy = 0;
                 for (int idx = 0; idx < patternNum; idx++) 
                 {
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
                     Vec3f hitColor = getInterpolatedElement33(frame->dI,
                                                               (float) (bestU + rotatetPattern[idx][0]),
                                                               (float) (bestV + rotatetPattern[idx][1]), wG[0]);
 
-<<<<<<< HEAD
-                    if (!std::isfinite((float) hitColor[0])) {
-=======
                     if (!std::isfinite((float) hitColor[0])) 
                     {
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
                         energy += 1e5;
                         continue;
                     }
@@ -287,24 +251,16 @@ namespace ldso {
                 }
 
 
-<<<<<<< HEAD
-                if (energy > bestEnergy) {
-=======
                 if (energy > bestEnergy) 
                 {
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
                     gnStepsBad++;
 
                     // do a smaller step from old point.
                     stepBack *= 0.5;
                     bestU = uBak + stepBack * dx;
                     bestV = vBak + stepBack * dy;
-<<<<<<< HEAD
-                } else {
-=======
                 } else 
                 {
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
                     gnStepsGood++;
 
                     float step = -gnstepsize * b / H;
@@ -326,12 +282,8 @@ namespace ldso {
             }
 
             // ============== detect energy-based outlier. ===================
-<<<<<<< HEAD
-            if (!(bestEnergy < energyTH * setting_trace_extraSlackOnTH)) {
-=======
             if (!(bestEnergy < energyTH * setting_trace_extraSlackOnTH)) 
             {
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
                 lastTracePixelInterval = 0;
                 lastTraceUV = Vec2f(-1, -1);
                 if (lastTraceStatus == ImmaturePointStatus::IPS_OUTLIER)
@@ -341,22 +293,14 @@ namespace ldso {
             }
 
             // ============== set new interval ===================
-<<<<<<< HEAD
-            if (dx * dx > dy * dy) {
-=======
             if (dx * dx > dy * dy) 
             {
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
                 idepth_min = (pr[2] * (bestU - errorInPixel * dx) - pr[0]) /
                              (hostToFrame_Kt[0] - hostToFrame_Kt[2] * (bestU - errorInPixel * dx));
                 idepth_max = (pr[2] * (bestU + errorInPixel * dx) - pr[0]) /
                              (hostToFrame_Kt[0] - hostToFrame_Kt[2] * (bestU + errorInPixel * dx));
-<<<<<<< HEAD
-            } else {
-=======
             } else
             {
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
                 idepth_min = (pr[2] * (bestV - errorInPixel * dy) - pr[1]) /
                              (hostToFrame_Kt[1] - hostToFrame_Kt[2] * (bestV - errorInPixel * dy));
                 idepth_max = (pr[2] * (bestV + errorInPixel * dy) - pr[1]) /
@@ -365,12 +309,8 @@ namespace ldso {
             if (idepth_min > idepth_max) std::swap<float>(idepth_min, idepth_max);
 
 
-<<<<<<< HEAD
-            if (!std::isfinite(idepth_min) || !std::isfinite(idepth_max) || (idepth_max < 0)) {
-=======
             if (!std::isfinite(idepth_min) || !std::isfinite(idepth_max) || (idepth_max < 0)) 
             {
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
                 lastTracePixelInterval = 0;
                 lastTraceUV = Vec2f(-1, -1);
                 return lastTraceStatus = ImmaturePointStatus::IPS_OUTLIER;
@@ -386,12 +326,8 @@ namespace ldso {
                 shared_ptr<ImmaturePointTemporaryResidual> tmpRes, float &Hdd, float &bd,
                 float idepth) {
 
-<<<<<<< HEAD
-            if (tmpRes->state_state == ResState::OOB) {
-=======
             if (tmpRes->state_state == ResState::OOB) 
             {
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
                 tmpRes->state_NewState = ResState::OOB;
                 return tmpRes->state_energy;
             }
@@ -407,11 +343,7 @@ namespace ldso {
             const Vec3f &PRE_tTll = precalc->PRE_tTll;
 
             Vec2f affLL = precalc->PRE_aff_mode;
-<<<<<<< HEAD
-
-=======
             // 累计一个pattern中的误差, Hdd, bd
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
             for (int idx = 0; idx < patternNum; idx++) {
                 int dx = patternP[idx][0];
                 int dy = patternP[idx][1];
@@ -419,76 +351,47 @@ namespace ldso {
                 float drescale, u, v, new_idepth;
                 float Ku, Kv;
                 Vec3f KliP;
-<<<<<<< HEAD
-
-=======
                 // 如果投影点超出了图像的范围,将误差标记为OOB,
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
                 if (!projectPoint(this->feature->uv[0], this->feature->uv[1], idepth, dx, dy, HCalib,
                                   PRE_RTll, PRE_tTll, drescale, u, v, Ku, Kv, KliP, new_idepth)) {
                     tmpRes->state_NewState = ResState::OOB;
                     return tmpRes->state_energy;
                 }
 
-<<<<<<< HEAD
-
-=======
                 // 双线性插值得到投影点出的intensity, dx, dy
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
                 Vec3f hitColor = (getInterpolatedElement33(dIl, Ku, Kv, wG[0]));
 
                 if (!std::isfinite((float) hitColor[0])) {
                     tmpRes->state_NewState = ResState::OOB;
                     return tmpRes->state_energy;
                 }
-<<<<<<< HEAD
-                float residual = hitColor[0] - (affLL[0] * color[idx] + affLL[1]);
-
-                float hw = fabsf(residual) < setting_huberTH ? 1 : setting_huberTH / fabsf(residual);
-=======
                 // 计算投影点出的光度误差
                 float residual = hitColor[0] - (affLL[0] * color[idx] + affLL[1]);
                 // huber kernel weight
                 float hw = fabsf(residual) < setting_huberTH ? 1 : setting_huberTH / fabsf(residual);
                 // huber kernel 加权的能量值
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
                 energyLeft += weights[idx] * weights[idx] * hw * residual * residual * (2 - hw);
 
                 // depth derivatives.
                 float dxInterp = hitColor[1] * HCalib->fxl();
                 float dyInterp = hitColor[2] * HCalib->fyl();
-<<<<<<< HEAD
-                float d_idepth = derive_idepth(PRE_tTll, u, v, dx, dy, dxInterp, dyInterp, drescale);
-
-                hw *= weights[idx] * weights[idx];
-
-=======
 
                 float d_idepth = derive_idepth(PRE_tTll, u, v, dx, dy, dxInterp, dyInterp, drescale);
                 // 权重是由huber权重和patternP梯度对应的权重(见论文的公式)的乘积
                 hw *= weights[idx] * weights[idx];
                 // Hdd bd 进行累加
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
                 Hdd += (hw * d_idepth) * d_idepth;
                 bd += (hw * residual) * d_idepth;
             }
 
-<<<<<<< HEAD
-
-=======
             // 如果误差太大,将误差新的状态设置为OUTLIER,并将误差进行截断
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
             if (energyLeft > energyTH * outlierTHSlack) {
                 energyLeft = energyTH * outlierTHSlack;
                 tmpRes->state_NewState = ResState::OUTLIER;
             } else {
                 tmpRes->state_NewState = ResState::IN;
             }
-<<<<<<< HEAD
-
-=======
             // 返回能量值
->>>>>>> 50606280c3bf3fbd9a2f9369995cee43b6263ad9
             tmpRes->state_NewEnergy = energyLeft;
             return energyLeft;
         }
