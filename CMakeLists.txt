@@ -32,6 +32,7 @@ find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(OpenCV REQUIRED)
 find_package(Glog REQUIRED)
 find_package(Pangolin REQUIRED)
+FIND_PACKAGE(OpenMP)
 
 # optional libs
 find_package(LibZip QUIET)
@@ -71,6 +72,7 @@ set( THIRD_PARTY_LIBS
         ${PROJECT_SOURCE_DIR}/thirdparty/g2o/lib/libg2o${CMAKE_SHARED_LIBRARY_SUFFIX}
         ${PROJECT_SOURCE_DIR}/thirdparty/DBoW3/build/src/libDBoW3${CMAKE_SHARED_LIBRARY_SUFFIX}
         ${LIBZIP_LIBRARY}
+        OpenMP::OpenMP_CXX
 )
 
 add_subdirectory(src)

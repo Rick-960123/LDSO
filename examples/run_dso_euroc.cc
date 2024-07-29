@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <unistd.h>
 #include <sys/time.h>
+#include <chrono>
 
 #include <glog/logging.h>
 
@@ -37,7 +38,7 @@ double rescale = 1;
 bool reversePlay = false;
 bool disableROS = false;
 bool prefetch = false;
-float playbackSpeed = 0;    // 0 for linearize (play as fast as possible, while sequentializing tracking & mapping). otherwise, factor on timestamps.
+float playbackSpeed = 1.0;    // 0 for linearize (play as fast as possible, while sequentializing tracking & mapping). otherwise, factor on timestamps.
 bool preload = false;
 bool useSampleOutput = false;
 
@@ -270,6 +271,7 @@ int main(int argc, char **argv) {
     shared_ptr<ImageFolderReader> reader(
             new ImageFolderReader(ImageFolderReader::EUROC, source, calib, "", ""));    // no gamma and vignette
 
+    //设置金字塔层数和各层内参矩阵
     reader->setGlobalCalibration();
 
     int lstart = startIdx;
@@ -285,9 +287,11 @@ int main(int argc, char **argv) {
         linc = -1;
     }
 
+    //导入字典
     shared_ptr<ORBVocabulary> voc(new ORBVocabulary());
     voc->load(vocPath);
 
+    //设置光度内参
     shared_ptr<FullSystem> fullSystem(new FullSystem(voc));
     fullSystem->setGammaFunction(reader->getPhotometricGamma());
     fullSystem->linearizeOperation = (playbackSpeed == 0);
@@ -327,7 +331,7 @@ int main(int argc, char **argv) {
 
         struct timeval tv_start;
         gettimeofday(&tv_start, NULL);
-        clock_t started = clock();
+        auto started = std::chrono::high_resolution_clock::now();
         double sInitializerOffset = 0;
 
 
@@ -339,7 +343,7 @@ int main(int argc, char **argv) {
             if (!fullSystem->initialized)    // if not initialized: reset start time.
             {
                 gettimeofday(&tv_start, NULL);
-                started = clock();
+                started = std::chrono::high_resolution_clock::now();
                 sInitializerOffset = timesToPlayAt[ii];
             }
 
@@ -353,21 +357,30 @@ int main(int argc, char **argv) {
 
 
             bool skipFrame = false;
-            if (playbackSpeed != 0) {
-                struct timeval tv_now;
-                gettimeofday(&tv_now, NULL);
-                double sSinceStart = sInitializerOffset + ((tv_now.tv_sec - tv_start.tv_sec) +
-                                                           (tv_now.tv_usec - tv_start.tv_usec) / (1000.0f * 1000.0f));
+            // if (playbackSpeed != 0) {
+            //     struct timeval tv_now;
+            //     gettimeofday(&tv_now, NULL);
+            //     double sSinceStart = sInitializerOffset + ((tv_now.tv_sec - tv_start.tv_sec) +
+            //                                                (tv_now.tv_usec - tv_start.tv_usec) / (1000.0f * 1000.0f));
 
-                if (sSinceStart < timesToPlayAt[ii]) {
-                    // usleep((int) ((timesToPlayAt[ii] - sSinceStart) * 1000 * 1000));
-                }
-                else if (sSinceStart > timesToPlayAt[ii] + 0.5 + 0.1 * (ii % 2)) {
-                    printf("SKIPFRAME %d (play at %f, now it is %f)!\n", ii, timesToPlayAt[ii], sSinceStart);
-                    skipFrame = true;
-                }
-            }
-            if (!skipFrame) fullSystem->addActiveFrame(img, i);
+            //     if (sSinceStart < timesToPlayAt[ii]) {
+            //         // usleep((int) ((timesToPlayAt[ii] - sSinceStart) * 1000 * 1000));
+            //     }
+            //     else if (sSinceStart > timesToPlayAt[ii] + 0.5 + 0.1 * (ii % 2)) {
+            //         printf("SKIPFRAME %d (play at %f, now it is %f)!\n", ii, timesToPlayAt[ii], sSinceStart);
+            //         skipFrame = true;
+            //     }
+            // }
+            auto full_system_started = std::chrono::high_resolution_clock::now();
+            if (!skipFrame){
+                fullSystem->addActiveFrame(img, i);
+                auto full_system_end = std::chrono::high_resolution_clock::now();
+                double full_system_ms = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end - full_system_started).count();
+                        printf("\n======================"
+               "\naddActiveFrame: %.3f ms ; "
+               "\n======================\n\n",
+               full_system_ms);
+            } 
             delete img;
 
             if (fullSystem->initFailed || setting_fullResetRequested) {
@@ -394,7 +407,8 @@ int main(int argc, char **argv) {
 
         fullSystem->blockUntilMappingIsFinished();
 
-        clock_t ended = clock();
+        auto ended = std::chrono::high_resolution_clock::now();
+
         struct timeval tv_end;
         gettimeofday(&tv_end, NULL);
 
@@ -404,7 +418,7 @@ int main(int argc, char **argv) {
 
         int numFramesProcessed = abs(idsToPlay[0] - idsToPlay.back());
         double numSecondsProcessed = fabs(reader->getTimestamp(idsToPlay[0]) - reader->getTimestamp(idsToPlay.back()));
-        double MilliSecondsTakenSingle = 1000.0f * (ended - started) / (float) (CLOCKS_PER_SEC);
+        double MilliSecondsTakenSingle = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(ended - started).count();
         double MilliSecondsTakenMT = sInitializerOffset + ((tv_end.tv_sec - tv_start.tv_sec) * 1000.0f +
                                                            (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f);
         printf("\n======================"
@@ -419,14 +433,22 @@ int main(int argc, char **argv) {
                MilliSecondsTakenMT / (float) numFramesProcessed,
                1000 / (MilliSecondsTakenSingle / numSecondsProcessed),
                1000 / (MilliSecondsTakenMT / numSecondsProcessed));
+        
+        printf("\n======================"
+               "\ndata duration: %.2f s ; "
+               "\nprocess duration: %.2f s; "
+               "\n======================\n\n",
+               numSecondsProcessed,
+               MilliSecondsTakenSingle / 1000.0f);
+
         if (setting_logStuff) {
             std::ofstream tmlog;
-            tmlog.open("logs/time.txt", std::ios::trunc | std::ios::out);
-            tmlog << 1000.0f * (ended - started) / (float) (CLOCKS_PER_SEC * reader->getNumImages()) << " "
-                  << ((tv_end.tv_sec - tv_start.tv_sec) * 1000.0f + (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f) /
-                     (float) reader->getNumImages() << "\n";
-            tmlog.flush();
-            tmlog.close();
+            // tmlog.open("logs/time.txt", std::ios::trunc | std::ios::out);
+            // tmlog << 1000.0f * std::chrono::duration_cast<std::chrono::milliseconds>(ended - started) << " "
+            //       << ((tv_end.tv_sec - tv_start.tv_sec) * 1000.0f + (tv_end.tv_usec - tv_start.tv_usec) / 1000.0f) /
+            //          (float) reader->getNumImages() << "\n";
+            // tmlog.flush();
+            // tmlog.close();
         }
     });
 

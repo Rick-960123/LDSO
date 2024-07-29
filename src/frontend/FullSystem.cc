@@ -15,6 +15,8 @@
 #include <opencv2/features2d/features2d.hpp>
 #include <iomanip>
 #include <opencv2/highgui/highgui.hpp>
+#include <omp.h>
+#include <chrono>
 
 using namespace ldso;
 using namespace ldso::internal;
@@ -151,10 +153,10 @@ void FullSystem::addActiveFrame(ImageAndExposure *image, int id)
                     (wG[0] + hG[0]) +
                 setting_kfGlobalWeight * setting_maxShiftWeightRT * sqrtf((double) tres[3]) /
                     // 旋转和平移复合的光溜
-                    (wG[0] + hG[0]) +
-                setting_kfGlobalWeight * setting_maxAffineWeight * fabs(logf((float) refToFh[0])); // 光度变换
+                    (wG[0] + hG[0]) ;//+
+                //setting_kfGlobalWeight * setting_maxAffineWeight * fabs(logf((float) refToFh[0])); // 光度变换
 
-            bool b1 = b > 1;
+            bool b1 = b > 1.0;
             // if the current photometric error larger than the initial errors
             // 如果追踪当前帧计算得到的光度误差大于初始的误差的2被,那么需要插入关键帧
             bool b2 = 2 * coarseTracker->firstCoarseRMSE < tres[0];
@@ -187,20 +189,24 @@ void FullSystem::deliverTrackedFrame(shared_ptr<FrameHessian> fh, bool needKF)
         }
     }
     else {
-        // 多线程执行makeKeyFrame 或者 makeNonKeyFrame
-        // step1: 获取mappingThread 的锁
-        unique_lock<mutex> lock(trackMapSyncMutex);
-        // step2: 将当前帧压人到unmappedTrackedFrames 队列
-        unmappedTrackedFrames.push_back(fh->frame);
-        // step3: 唤醒线程
-        trackedFrameSignal.notify_all();
-        // step4: 等待建图结束
-        while (coarseTracker_forNewKF->refFrameID == -1 && coarseTracker->refFrameID == -1) {
-            LOG(INFO) << "wait for mapped frame signal" << endl;
-            mappedFrameSignal.wait(lock);
+        if (needKF) {
+            makeKeyFrame(fh);
+        }else{
+            // 多线程执行makeKeyFrame 或者 makeNonKeyFrame
+            // step1: 获取mappingThread 的锁
+            unique_lock<mutex> lock(trackMapSyncMutex);
+            // step2: 将当前帧压人到unmappedTrackedFrames 队列
+            unmappedTrackedFrames.push_back(fh->frame);
+            // step3: 唤醒线程
+            trackedFrameSignal.notify_all();
+            // step4: 等待建图结束
+            while (coarseTracker_forNewKF->refFrameID == -1 && coarseTracker->refFrameID == -1) {
+                LOG(INFO) << "wait for mapped frame signal" << endl;
+                mappedFrameSignal.wait(lock);
+            }
+            // step5: 释放锁, 感觉没必要，unique_lock应该会自动释放锁
+            lock.unlock();
         }
-        // step5: 释放锁, 感觉没必要，unique_lock应该会自动释放锁
-        lock.unlock();
     }
 }
 
@@ -350,6 +356,8 @@ Vec4 FullSystem::trackNewCoarse(shared_ptr<FrameHessian> fh)
     Vec5 achievedRes = Vec5::Constant(NAN);
     bool haveOneGood = false;
     int tryIterations = 0;
+
+// #pragma omp for schedule(dynamic)
     for (unsigned int i = 0; i < lastF_2_fh_tries.size(); i++) {
 
         AffLight aff_g2l_this = aff_last_2_l;
@@ -440,6 +448,8 @@ void FullSystem::blockUntilMappingIsFinished()
 void FullSystem::makeKeyFrame(shared_ptr<FrameHessian> fh)
 {
 
+    auto full_system_start = std::chrono::high_resolution_clock::now();
+
     // 获取当前帧
     shared_ptr<Frame> frame = fh->frame;
     // 获取上一帧
@@ -476,6 +486,14 @@ void FullSystem::makeKeyFrame(shared_ptr<FrameHessian> fh)
         frames.push_back(fh->frame);
         fh->frame->kfId = fh->frameID = globalMap->NumFrames(); //关键帧在全局地图的id
     }
+
+    auto full_system_end = std::chrono::high_resolution_clock::now();
+    double full_system_ms = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end - full_system_start).count();
+    printf("\n======================"
+        "\ntraceNewCoarse: %.3f ms ; "
+        "\n======================\n\n",
+        full_system_ms);
+
     // Step4.2 将最新帧对应的FrameHessian插入到EnergyFunctional中,
     // insert FrameHessian of newest keyframes to EnergyFunctional, and calculate the the adjoint matrix and
     // make the id host target of point residual from screatch
@@ -484,12 +502,21 @@ void FullSystem::makeKeyFrame(shared_ptr<FrameHessian> fh)
     // calculate the relative pose the photometric affine coefficient
     // and calculate the increment the pose, the camera and inverse depth
     setPrecalcValues();
+    
+    auto full_system_end2 = std::chrono::high_resolution_clock::now();
+    double full_system_ms2 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end2 - full_system_end).count();
+    printf("\n======================"
+        "\nsetPrecalcValues: %.3f ms ; "
+        "\n======================\n\n",
+        full_system_ms2);
 
     // =========================== add new residuals for old points =========================
     LOG(INFO) << "adding new residuals" << endl;
     int numFwdResAdde = 0;
     //step5 add new residuals for old active points in frames except newest frame
     //step5.1 enumerate all frames in sliding window
+
+#pragma omp for schedule(dynamic)
     for (auto fht : frames) {
         shared_ptr<FrameHessian> &fh1 = fht->frameHessian;
         if (fh1 == fh) // except newest frame
@@ -507,12 +534,13 @@ void FullSystem::makeKeyFrame(shared_ptr<FrameHessian> fh)
 
                 r->setState(ResState::IN);
                 ph->residuals.push_back(r);
-                //step5.4 将视觉残差插入到能量函数中，同时计算该视觉残差因子中的H_poseab_inverse_depth
-                ef->insertResidual(r);
                 //step5.5 更新视觉残差因子上一次的残差记录值
                 ph->lastResiduals[1] = ph->lastResiduals[0];
                 ph->lastResiduals[0] = pair<shared_ptr<PointFrameResidual>, ResState>(r, ResState::IN);
+
                 numFwdResAdde++;
+                //step5.4 将视觉残差插入到能量函数中，同时计算该视觉残差因子中的H_poseab_inverse_depth
+                ef->insertResidual(r);
             }
         }
     }
@@ -522,6 +550,13 @@ void FullSystem::makeKeyFrame(shared_ptr<FrameHessian> fh)
     activatePointsMT();
     // step7: 重新梳理滑窗中关键帧的id和激活点光度误差对应的host与target frame的id
     ef->makeIDX();
+
+    auto full_system_end3 = std::chrono::high_resolution_clock::now();
+    double full_system_ms3 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end3 - full_system_end2).count();
+    printf("\n======================"
+        "\n activatePointsMT: %.3f ms ; "
+        "\n======================\n\n",
+        full_system_ms3);
 
     // =========================== OPTIMIZE ALL =========================
     fh->frameEnergyTH = frames.back()->frameHessian->frameEnergyTH;
@@ -550,6 +585,13 @@ void FullSystem::makeKeyFrame(shared_ptr<FrameHessian> fh)
         }
     }
 
+    auto full_system_end4 = std::chrono::high_resolution_clock::now();
+    double full_system_ms4 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end4 - full_system_end3).count();
+    printf("\n======================"
+        "\n optimize: %.3f ms ; "
+        "\n======================\n\n",
+        full_system_ms4);
+        
     if (isLost)
         return;
 
@@ -578,6 +620,13 @@ void FullSystem::makeKeyFrame(shared_ptr<FrameHessian> fh)
         ef->lastNullspaces_affB);
 
     ef->marginalizePointsF();
+
+    auto full_system_end5 = std::chrono::high_resolution_clock::now();
+    double full_system_ms5 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end5 - full_system_end4).count();
+    printf("\n======================"
+        "\n marginalizePointsF: %.3f ms ; "
+        "\n======================\n\n",
+        full_system_ms5);
 
     // =========================== add new Immature points & new residuals =========================
     makeNewTraces(fh, 0);
@@ -642,6 +691,14 @@ void FullSystem::makeKeyFrame(shared_ptr<FrameHessian> fh)
     if (setting_enableLoopClosing) {
         loopClosing->InsertKeyFrame(frame);
     }
+
+    auto full_system_end6 = std::chrono::high_resolution_clock::now();
+    double full_system_ms6 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end6 - full_system_end5).count();
+    printf("\n======================"
+        "\n globalMap: %.3f ms ; "
+        "\n======================\n\n",
+        full_system_ms6);
+
     LOG(INFO) << "make keyframe done" << endl;
 }
 
@@ -800,6 +857,8 @@ void FullSystem::flagFramesForMarginalization(shared_ptr<FrameHessian> &newFH)
 float FullSystem::optimize(int mnumOptIts)
 {
 
+    auto full_system_start = std::chrono::high_resolution_clock::now();
+
     // step1: 依据滑窗中关键帧的数目动态的调节优化的次数
     if (frames.size() < 2)
         return 0;
@@ -831,6 +890,13 @@ float FullSystem::optimize(int mnumOptIts)
         }
     }
 
+    auto full_system_end = std::chrono::high_resolution_clock::now();
+    double full_system_ms = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end - full_system_start).count();
+    printf("\n======================"
+        "\n activeResiduals: %.3f ms ; "
+        "\n======================\n\n",
+        full_system_ms);
+
     LOG(INFO) << "active residuals: " << activeResiduals.size() << endl;
     // step3: 计光度残差的雅克比矩阵J_I, J_geo, J_photo 和 error,同时剔除外点到I0, I1的约束
     Vec3 lastEnergy = linearizeAll(false);
@@ -846,6 +912,13 @@ float FullSystem::optimize(int mnumOptIts)
                             activeResiduals.size(), 50);
     else
         applyRes_Reductor(true, 0, activeResiduals.size(), 0, 0);
+
+    auto full_system_end1 = std::chrono::high_resolution_clock::now();
+    double full_system_ms1 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end1- full_system_end).count();
+    printf("\n======================"
+        "\n threadReduce: %.3f ms ; "
+        "\n======================\n\n",
+        full_system_ms1);
 
     printOptRes(lastEnergy, lastEnergyL, lastEnergyM, 0, 0, frames.back()->frameHessian->aff_g2l().a,
                 frames.back()->frameHessian->aff_g2l().b);
@@ -921,6 +994,13 @@ float FullSystem::optimize(int mnumOptIts)
             break;
     }//step4 LM迭代优化结束
 
+    auto full_system_end2 = std::chrono::high_resolution_clock::now();
+    double full_system_ms2 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end2- full_system_end1).count();
+    printf("\n======================"
+        "\n LM: %.3f ms ; "
+        "\n======================\n\n",
+        full_system_ms2);
+
     Vec10 newStateZero = Vec10::Zero();
     newStateZero.segment<2>(6) = frames.back()->frameHessian->get_state().segment<2>(6);
     //ste5： 设置最新帧的位姿和仿射变换系数的线性化点
@@ -953,6 +1033,14 @@ float FullSystem::optimize(int mnumOptIts)
             fr->aff_g2l = fr->frameHessian->aff_g2l();
         }
     }
+
+    auto full_system_end3 = std::chrono::high_resolution_clock::now();
+    double full_system_ms3 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end3- full_system_end2).count();
+    printf("\n======================"
+        "\n LM: %.3f ms ; "
+        "\n======================\n\n",
+        full_system_ms3);
+
     //step11: 返回激活点的平均能量
     return sqrtf((float) (lastEnergy[0] / (patternNum * ef->resInA)));
 }

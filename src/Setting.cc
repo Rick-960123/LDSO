@@ -97,7 +97,7 @@ namespace ldso {
     int benchmarkSetting_height = 0;
     float benchmark_varNoise = 0;
     float benchmark_varBlurNoise = 0;
-    float benchmark_initializerSlackFactor = 1;
+    float benchmark_initializerSlackFactor = 1.3;
     int benchmark_noiseGridsize = 3;
     float freeDebugParam1 = 1;
     float freeDebugParam2 = 1;
@@ -125,7 +125,7 @@ namespace ldso {
     int setting_pointSelection = 1;
     int sparsityFactor = 5;          // not actually a setting, only some legacy stuff for coarse initializer.
 
-    bool setting_enableLoopClosing = true;
+    bool setting_enableLoopClosing = false;
     bool setting_fastLoopClosing = true;
     bool setting_showLoopClosing = false;
 

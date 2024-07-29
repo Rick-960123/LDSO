@@ -467,6 +467,7 @@ namespace ldso {
         float maxEnergy = 2 * setting_huberTH * cutoffTH -
                           setting_huberTH * setting_huberTH;    // energy for r=setting_coarseCutoffTH.
 
+        //
         int nl = pc_n[lvl];
         float *lpc_u = pc_u[lvl];
         float *lpc_v = pc_v[lvl];
@@ -521,7 +522,7 @@ namespace ldso {
 
             if (!(Ku > 2 && Kv > 2 && Ku < wl - 3 && Kv < hl - 3 && new_idepth > 0)) continue;
 
-
+            //计算残差
             float refColor = lpc_color[i];
             Vec3f hitColor = getInterpolatedElement33(dINewl, Ku, Kv, wl);
             if (!std::isfinite((float) hitColor[0])) continue;
