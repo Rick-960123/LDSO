@@ -55,12 +55,18 @@ void settingsDefault(int preset) {
                "- original image resolution\n", preset == 0 ? "no " : "1x");
 
         playbackSpeed = (preset == 0 ? 0 : 1);
-        setting_desiredImmatureDensity = 1500;
-        setting_desiredPointDensity = 2000;
-        setting_minFrames = 5;
-        setting_maxFrames = 7;
-        setting_maxOptIterations = 6;
+        setting_desiredImmatureDensity = 600;
+        setting_desiredPointDensity = 800;
+        setting_minFrames = 3;
+        setting_maxFrames = 5;
+        setting_maxOptIterations = 5;
         setting_minOptIterations = 1;
+        // setting_desiredImmatureDensity = 1500;
+        // setting_desiredPointDensity = 2000;
+        // setting_minFrames = 5;
+        // setting_maxFrames = 7;
+        // setting_maxOptIterations = 6;
+        // setting_minOptIterations = 1;
 
         setting_logStuff = false;
     }

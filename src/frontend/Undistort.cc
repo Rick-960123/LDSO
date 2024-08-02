@@ -35,10 +35,23 @@
 #include "internal/GlobalFuncs.h"
 #include "frontend/Undistort.h"
 #include "frontend/ImageRW.h"
+#include <functional>
 
 using namespace ldso::internal;
 
 namespace ldso {
+
+    class ParallelLoopBodyImpl : public cv::ParallelLoopBody {
+    public:
+        ParallelLoopBodyImpl(std::function<void(const cv::Range&)> func) : func_(func) {}
+
+        void operator()(const cv::Range& range) const override {
+            func_(range);
+        }
+
+    private:
+        std::function<void(const cv::Range&)> func_;
+    };
 
     PhotometricUndistorter::PhotometricUndistorter(
             std::string file,
@@ -645,7 +658,7 @@ namespace ldso {
 
 
             printf("iteration %05d: range: x: %.4f - %.4f; y: %.4f - %.4f!\n", iteration, minX, maxX, minY, maxY);
-            if (iteration > 500) {
+            if (iteration > 1000) {
                 printf("FAILED TO COMPUTE GOOD CAMERA MATRIX - SOMETHING IS SERIOUSLY WRONG. ABORTING \n");
                 exit(1);
             }

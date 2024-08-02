@@ -3,7 +3,7 @@
 
 #include <iostream>
 #include <opencv2/opencv.hpp>
-
+#include <omp.h>
 
 namespace ldso {
 

@@ -71,6 +71,7 @@ namespace ldso {
 
         // iteration in each pyramid level
         int maxIterations[] = {10, 20, 50, 50, 50};
+        // int maxIterations[] = {10, 20, 30, 40, 50};
         float lambdaExtrapolationLimit = 0.001;
 
         // use last track results as an initial guess
@@ -86,6 +87,14 @@ namespace ldso {
             float levelCutoffRepeat = 1;
 
             // compute the residual and adjust the huber threshold
+            // Vec6 rs;
+            // rs[0] = E; //残差
+            // rs[1] = numTermsInE; // 残差数量
+            // rs[2] = sumSquaredShiftT / (sumSquaredShiftNum + 0.1); // 像素平移方差
+            // rs[3] = 0;
+            // rs[4] = sumSquaredShiftRT / (sumSquaredShiftNum + 0.1);  // 像素平移旋转方差
+            // rs[5] = numSaturated / (float) numTermsInE; //异常残差比重
+
             Vec6 resOld = calcRes(lvl, refToNew_current, aff_g2l_current, setting_coarseCutoffTH * levelCutoffRepeat);
             while (resOld[5] > 0.6 && levelCutoffRepeat < 50) {
                 // more than 60% is over than threshold, then increate the cut off threshold
@@ -454,7 +463,7 @@ namespace ldso {
         float cxl = cx[lvl];
         float cyl = cy[lvl];
 
-
+        // T * K^-1
         Mat33f RKi = (refToNew.rotationMatrix().cast<float>() * Ki[lvl]);
         Vec3f t = (refToNew.translation()).cast<float>();
         Vec2f affLL = AffLight::fromToVecExposure(lastRef->ab_exposure, newFrame->ab_exposure, lastRef_aff_g2l,
@@ -520,6 +529,7 @@ namespace ldso {
                 sumSquaredShiftNum += 2;
             }
 
+            //异常点排除
             if (!(Ku > 2 && Kv > 2 && Ku < wl - 3 && Kv < hl - 3 && new_idepth > 0)) continue;
 
             //计算残差
@@ -535,7 +545,6 @@ namespace ldso {
                 numTermsInE++;
                 numSaturated++;
             } else {
-
                 E += hw * residual * residual * (2 - hw);
                 numTermsInE++;
 
@@ -562,15 +571,15 @@ namespace ldso {
             buf_warped_refColor[numTermsInWarped] = 0;
             numTermsInWarped++;
         }
-        buf_warped_n = numTermsInWarped;
+        buf_warped_n = numTermsInWarped; //残差项数量，为4的整数倍
 
         Vec6 rs;
-        rs[0] = E;
-        rs[1] = numTermsInE;
-        rs[2] = sumSquaredShiftT / (sumSquaredShiftNum + 0.1);
+        rs[0] = E; //残差
+        rs[1] = numTermsInE; // 残差数量
+        rs[2] = sumSquaredShiftT / (sumSquaredShiftNum + 0.1); // 像素平移方差
         rs[3] = 0;
-        rs[4] = sumSquaredShiftRT / (sumSquaredShiftNum + 0.1);
-        rs[5] = numSaturated / (float) numTermsInE;
+        rs[4] = sumSquaredShiftRT / (sumSquaredShiftNum + 0.1);  // 像素平移旋转方差
+        rs[5] = numSaturated / (float) numTermsInE; //异常残差比重
 
         return rs;
     }
@@ -590,9 +599,11 @@ namespace ldso {
         __m128 minusOne = _mm_set1_ps(-1);
         __m128 zero = _mm_set1_ps(0);
 
-        int n = buf_warped_n;
+        int n = buf_warped_n; // 残差数量
+
         assert(n % 4 == 0);
         for (int i = 0; i < n; i += 4) {
+            // 关键帧图像梯度、坐标、逆深度
             __m128 dx = _mm_mul_ps(_mm_load_ps(buf_warped_dx + i), fxl);
             __m128 dy = _mm_mul_ps(_mm_load_ps(buf_warped_dy + i), fyl);
             __m128 u = _mm_load_ps(buf_warped_u + i);

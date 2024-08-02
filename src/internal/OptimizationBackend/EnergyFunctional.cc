@@ -60,6 +60,7 @@ void EnergyFunctional::insertFrame(shared_ptr<FrameHessian> fh, shared_ptr<Calib
     EFAdjointsValid = false;
     EFDeltaValid = false;
     //calculate the adHostF and adHostT
+    // 没懂
     setAdjointsF(Hcalib);
     makeIDX();
 

@@ -145,7 +145,7 @@ void FullSystem::addActiveFrame(ImageAndExposure *image, int id)
         else {
             //　计算参考帧和当前帧的相对光度变换参数
             Vec2 refToFh = AffLight::fromToVecExposure(coarseTracker->lastRef->ab_exposure, fh->ab_exposure,
-                                                       coarseTracker->lastRef_aff_g2l, fh->aff_g2l());
+                                                       coarseTracker->lastRef_aff_g2l, fh->frame->aff_g2l);
             // keyframe creation,　见DSO论文Chapter 3.2 Frame Management 的 Step2 Keyframe Creation 的判断条件
             float b = setting_kfGlobalWeight * setting_maxShiftWeightT * sqrtf((double) tres[1]) /       //纯位移光流
                 (wG[0] + hG[0]) +
@@ -153,10 +153,10 @@ void FullSystem::addActiveFrame(ImageAndExposure *image, int id)
                     (wG[0] + hG[0]) +
                 setting_kfGlobalWeight * setting_maxShiftWeightRT * sqrtf((double) tres[3]) /
                     // 旋转和平移复合的光溜
-                    (wG[0] + hG[0]) ;//+
-                //setting_kfGlobalWeight * setting_maxAffineWeight * fabs(logf((float) refToFh[0])); // 光度变换
+                    (wG[0] + hG[0]);
+                // setting_kfGlobalWeight * setting_maxAffineWeight * fabs(logf((float) refToFh[0])); // 光度变换
 
-            bool b1 = b > 1.0;
+            bool b1 = b > 2.0;
             // if the current photometric error larger than the initial errors
             // 如果追踪当前帧计算得到的光度误差大于初始的误差的2被,那么需要插入关键帧
             bool b2 = 2 * coarseTracker->firstCoarseRMSE < tres[0];
@@ -223,6 +223,9 @@ Vec4 FullSystem::trackNewCoarse(shared_ptr<FrameHessian> fh)
     // try a lot of pose values and see which is the best
     std::vector<SE3, Eigen::aligned_allocator<SE3>>
         lastF_2_fh_tries;
+
+    lastF_2_fh_tries.reserve(100);
+    
     if (allFrameHistory.size() == 2)
         for (unsigned int i = 0; i < lastF_2_fh_tries.size(); i++) // TODO: maybe wrong, size is obviously zero
             lastF_2_fh_tries.push_back(SE3());                     // use identity
@@ -357,7 +360,6 @@ Vec4 FullSystem::trackNewCoarse(shared_ptr<FrameHessian> fh)
     bool haveOneGood = false;
     int tryIterations = 0;
 
-// #pragma omp for schedule(dynamic)
     for (unsigned int i = 0; i < lastF_2_fh_tries.size(); i++) {
 
         AffLight aff_g2l_this = aff_last_2_l;
@@ -501,6 +503,7 @@ void FullSystem::makeKeyFrame(shared_ptr<FrameHessian> fh)
     // Step4.3
     // calculate the relative pose the photometric affine coefficient
     // and calculate the increment the pose, the camera and inverse depth
+    // 准备微分
     setPrecalcValues();
     
     auto full_system_end2 = std::chrono::high_resolution_clock::now();
@@ -516,7 +519,7 @@ void FullSystem::makeKeyFrame(shared_ptr<FrameHessian> fh)
     //step5 add new residuals for old active points in frames except newest frame
     //step5.1 enumerate all frames in sliding window
 
-#pragma omp for schedule(dynamic)
+// #pragma omp parallel for schedule(static)
     for (auto fht : frames) {
         shared_ptr<FrameHessian> &fh1 = fht->frameHessian;
         if (fh1 == fh) // except newest frame
@@ -686,18 +689,25 @@ void FullSystem::makeKeyFrame(shared_ptr<FrameHessian> fh)
             }
     }
 
+    auto full_system_end6 = std::chrono::high_resolution_clock::now();
+    double full_system_ms6 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end6 - full_system_end5).count();
+    printf("\n======================"
+        "\n marginalizeFrame: %.3f ms ; "
+        "\n======================\n\n",
+        full_system_ms6);
+
     // add current kf into map and detect loops
     globalMap->AddKeyFrame(fh->frame);
     if (setting_enableLoopClosing) {
         loopClosing->InsertKeyFrame(frame);
     }
 
-    auto full_system_end6 = std::chrono::high_resolution_clock::now();
-    double full_system_ms6 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end6 - full_system_end5).count();
+    auto full_system_end7 = std::chrono::high_resolution_clock::now();
+    double full_system_ms7 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end7 - full_system_end6).count();
     printf("\n======================"
         "\n globalMap: %.3f ms ; "
         "\n======================\n\n",
-        full_system_ms6);
+        full_system_ms7);
 
     LOG(INFO) << "make keyframe done" << endl;
 }
@@ -1037,7 +1047,7 @@ float FullSystem::optimize(int mnumOptIts)
     auto full_system_end3 = std::chrono::high_resolution_clock::now();
     double full_system_ms3 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end3- full_system_end2).count();
     printf("\n======================"
-        "\n LM: %.3f ms ; "
+        "\n setPoseOpti: %.3f ms ; "
         "\n======================\n\n",
         full_system_ms3);
 

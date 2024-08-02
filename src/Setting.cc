@@ -106,7 +106,7 @@ namespace ldso {
     float freeDebugParam5 = 1;
     bool disableReconfigure = false;
     bool debugSaveImages = false;
-    bool multiThreading = true;
+    bool multiThreading = false;
     bool disableAllDisplay = false;
     bool setting_onlyLogKFPoses = true;
     bool setting_logStuff = true;
@@ -122,11 +122,11 @@ namespace ldso {
     bool setting_fullResetRequested = false;
     bool setting_debugout_runquiet = false;
     bool setting_pause = false;
-    int setting_pointSelection = 1;
+    int setting_pointSelection = 0;
     int sparsityFactor = 5;          // not actually a setting, only some legacy stuff for coarse initializer.
 
     bool setting_enableLoopClosing = false;
-    bool setting_fastLoopClosing = true;
+    bool setting_fastLoopClosing = false;
     bool setting_showLoopClosing = false;
 
     void handleKey(char k) {

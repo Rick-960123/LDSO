@@ -32,12 +32,15 @@ find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(OpenCV REQUIRED)
 find_package(Glog REQUIRED)
 find_package(Pangolin REQUIRED)
-FIND_PACKAGE(OpenMP)
+FIND_PACKAGE(OpenMP REQUIRED)
 
 # optional libs
 find_package(LibZip QUIET)
 
 set(CMAKE_CXX_FLAGS "-Wall -Wno-deprecated -march=native -Wno-duplicate-decl-specifier -Wno-ignored-qualifiers -Wno-reorder -Wno-missing-braces")
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 
 if(NOT APPLE)
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
