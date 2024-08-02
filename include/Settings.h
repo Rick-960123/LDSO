@@ -5,7 +5,7 @@
 /// a lot many parameters set in DSO
 namespace ldso {
 
-    const int PYR_LEVELS = 6;  // total image pyramids, note not all are used during tracking
+    const int PYR_LEVELS = 4;  // total image pyramids, note not all are used during tracking
     const int NUM_THREADS = 6;
 
     // the config bits in solver
