@@ -148,16 +148,16 @@ void FullSystem::addActiveFrame(ImageAndExposure *image, int id)
             Vec2 refToFh = AffLight::fromToVecExposure(coarseTracker->lastRef->ab_exposure, fh->ab_exposure,
                                                        coarseTracker->lastRef_aff_g2l, fh->frame->aff_g2l);
             // keyframe creation,　见DSO论文Chapter 3.2 Frame Management 的 Step2 Keyframe Creation 的判断条件
-            float b = setting_kfGlobalWeight * setting_maxShiftWeightT * sqrtf((double) tres[1]) /       //纯位移光流
-                (wG[0] + hG[0]) +
-                setting_kfGlobalWeight * setting_maxShiftWeightR * sqrtf((double) tres[2]) /       // 没有用
-                    (wG[0] + hG[0]) +
-                setting_kfGlobalWeight * setting_maxShiftWeightRT * sqrtf((double) tres[3]) /
-                    // 旋转和平移复合的光溜
-                    (wG[0] + hG[0]);
+            // float b = setting_kfGlobalWeight * setting_maxShiftWeightT * sqrtf((double) tres[1]) /       //纯位移光流
+            //     (wG[0] + hG[0]) +
+            //     setting_kfGlobalWeight * setting_maxShiftWeightR * sqrtf((double) tres[2]) /       // 没有用
+            //         (wG[0] + hG[0]) +
+            //     setting_kfGlobalWeight * setting_maxShiftWeightRT * sqrtf((double) tres[3]) /
+            //         // 旋转和平移复合的光溜
+            //         (wG[0] + hG[0]);
 
-            bool b1 = b > 2.0;
-            
+            bool b1 = sqrtf((double) tres[3]) > 30.0;
+
             // if the current photometric error larger than the initial errors
             // 如果追踪当前帧计算得到的光度误差大于初始的误差的2被,那么需要插入关键帧
             bool b2 = 2 * coarseTracker->firstCoarseRMSE < tres[0];

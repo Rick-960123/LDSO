@@ -9,8 +9,8 @@ namespace ldso {
     float setting_keyframesPerSecond = 0;
     bool setting_realTimeMaxKF = false;
     float setting_maxShiftWeightT = 0.02f * (640 + 480);
-    float setting_maxShiftWeightR = 0.02f * (640 + 480);
-    float setting_maxShiftWeightRT = 0.02f * (640 + 480);
+    float setting_maxShiftWeightR = 0.00f * (640 + 480); //没用
+    float setting_maxShiftWeightRT = 0.04f * (640 + 480);
     float setting_kfGlobalWeight = 1.0;
     float setting_maxAffineWeight = 2.0;
     float setting_idepthFixPrior = 50 * 50;

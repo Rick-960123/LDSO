@@ -90,9 +90,9 @@ namespace ldso {
             // Vec6 rs;
             // rs[0] = E; //残差
             // rs[1] = numTermsInE; // 残差数量
-            // rs[2] = sumSquaredShiftT / (sumSquaredShiftNum + 0.1); // 像素平移方差
+            // rs[2] = sumSquaredShiftT / (sumSquaredShiftNum + 0.1); // // 像素平移均方
             // rs[3] = 0;
-            // rs[4] = sumSquaredShiftRT / (sumSquaredShiftNum + 0.1);  // 像素平移旋转方差
+            // rs[4] = sumSquaredShiftRT / (sumSquaredShiftNum + 0.1);  // 像素平移旋转均方
             // rs[5] = numSaturated / (float) numTermsInE; //异常残差比重
 
             Vec6 resOld = calcRes(lvl, refToNew_current, aff_g2l_current, setting_coarseCutoffTH * levelCutoffRepeat);
@@ -576,9 +576,9 @@ namespace ldso {
         Vec6 rs;
         rs[0] = E; //残差
         rs[1] = numTermsInE; // 残差数量
-        rs[2] = sumSquaredShiftT / (sumSquaredShiftNum + 0.1); // 像素平移方差
+        rs[2] = sumSquaredShiftT / (sumSquaredShiftNum + 0.1); // 像素平移均方
         rs[3] = 0;
-        rs[4] = sumSquaredShiftRT / (sumSquaredShiftNum + 0.1);  // 像素平移旋转方差
+        rs[4] = sumSquaredShiftRT / (sumSquaredShiftNum + 0.1);  // 像素平移旋转均方
         rs[5] = numSaturated / (float) numTermsInE; //异常残差比重
 
         return rs;
