@@ -12,3 +12,11 @@ target_link_libraries( run_dso_euroc
 add_executable( run_dso_kitti run_dso_kitti.cc )
 target_link_libraries( run_dso_kitti
   ldso ${THIRD_PARTY_LIBS} )
+
+FIND_PACKAGE(TBB REQUIRED)
+FIND_PACKAGE(OpenMP REQUIRED)
+set(CMAKE_CXX_STANDARD 17)
+add_executable( run_test test.cpp )
+target_link_libraries( run_test
+OpenMP::OpenMP_CXX
+TBB::tbb )

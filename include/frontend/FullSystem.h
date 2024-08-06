@@ -6,6 +6,9 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <queue>
+#include <atomic>
+#include <future>
 
 #include "Frame.h"
 #include "Point.h"
@@ -289,6 +292,7 @@ namespace ldso {
         shared_ptr<Camera> Hcalib = nullptr;    // calib information
 
     private:
+        std::queue<std::future<int>> async_tasks;
         // data
         // =================== changed by tracker-thread. protected by trackMutex ============
         mutex trackMutex;

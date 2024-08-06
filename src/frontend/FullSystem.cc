@@ -17,6 +17,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <omp.h>
 #include <chrono>
+#include <future>
 
 using namespace ldso;
 using namespace ldso::internal;
@@ -241,7 +242,9 @@ Vec4 FullSystem::trackNewCoarse(shared_ptr<FrameHessian> fh)
 
         { // lock on global pose consistency!
             unique_lock<mutex> crlock(shellPoseMutex);
+            // 前两帧间的位移
             slast_2_sprelast = sprelast->getPose() * slast->getPose().inverse();
+            // 前一帧相对于上个关键帧的位移
             lastF_2_slast = slast->getPose() * lastF->frame->getPose().inverse();
             aff_last_2_l = slast->aff_g2l;
         }
@@ -448,7 +451,12 @@ void FullSystem::blockUntilMappingIsFinished()
 }
 
 void FullSystem::makeKeyFrame(shared_ptr<FrameHessian> fh)
-{
+{   
+    while(async_tasks.size() > 0){
+        auto &fut = async_tasks.front();
+        fut.get();
+        async_tasks.pop();
+    }
 
     auto full_system_start = std::chrono::high_resolution_clock::now();
 
@@ -598,42 +606,6 @@ void FullSystem::makeKeyFrame(shared_ptr<FrameHessian> fh)
     if (isLost)
         return;
 
-    // =========================== REMOVE OUTLIER =========================
-    removeOutliers();
-
-    // swap the coarse Tracker for new kf
-    {
-        unique_lock<mutex> crlock(coarseTrackerSwapMutex);
-        coarseTracker_forNewKF->makeK(Hcalib->mpCH);
-        vector<shared_ptr<FrameHessian>> fhs;
-        for (auto &f : frames)
-            fhs.push_back(f->frameHessian);
-        coarseTracker_forNewKF->setCoarseTrackingRef(fhs);
-    }
-
-    // =========================== (Activate-)Marginalize Points =========================
-    // traditional bundle adjustment when marging all points
-    flagPointsForRemoval();
-    ef->dropPointsF();
-
-    getNullspaces(
-        ef->lastNullspaces_pose,
-        ef->lastNullspaces_scale,
-        ef->lastNullspaces_affA,
-        ef->lastNullspaces_affB);
-
-    ef->marginalizePointsF();
-
-    auto full_system_end5 = std::chrono::high_resolution_clock::now();
-    double full_system_ms5 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end5 - full_system_end4).count();
-    printf("\n======================"
-        "\n marginalizePointsF: %.3f ms ; "
-        "\n======================\n\n",
-        full_system_ms5);
-
-    // =========================== add new Immature points & new residuals =========================
-    makeNewTraces(fh, 0);
-
     // record the relative poses, note we are building a covisibility graph in fact
     auto minandmax = std::minmax_element(frames.begin(), frames.end(), CmpFrameKFID());
     unsigned long minKFId = (*minandmax.first)->kfId;
@@ -673,26 +645,23 @@ void FullSystem::makeKeyFrame(shared_ptr<FrameHessian> fh)
         }
     }
 
-    // visualization
-    if (viewer)
-        viewer->publishKeyframes(frames, false, Hcalib->mpCH);
-
-    // =========================== Marginalize Frames =========================
+    makeNewTraces(fh, 0);
+    removeOutliers();
+        
+    // swap the coarse Tracker for new kf
     {
-        unique_lock<mutex> lck(framesMutex);
-        for (unsigned int i = 0; i < frames.size(); i++)
-            if (frames[i]->frameHessian->flaggedForMarginalization) {
-                LOG(INFO) << "marg frame " << frames[i]->id << endl;
-                CHECK(frames[i] != coarseTracker->lastRef->frame);
-                marginalizeFrame(frames[i]);
-                i = 0;
-            }
+        unique_lock<mutex> crlock(coarseTrackerSwapMutex);
+        coarseTracker_forNewKF->makeK(Hcalib->mpCH);
+        vector<shared_ptr<FrameHessian>> fhs;
+        for (auto &f : frames)
+            fhs.push_back(f->frameHessian);
+        coarseTracker_forNewKF->setCoarseTrackingRef(fhs);
     }
 
     auto full_system_end6 = std::chrono::high_resolution_clock::now();
-    double full_system_ms6 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end6 - full_system_end5).count();
+    double full_system_ms6 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end6 - full_system_end4).count();
     printf("\n======================"
-        "\n marginalizeFrame: %.3f ms ; "
+        "\n makeNewTraces: %.3f ms ; "
         "\n======================\n\n",
         full_system_ms6);
 
@@ -708,6 +677,48 @@ void FullSystem::makeKeyFrame(shared_ptr<FrameHessian> fh)
         "\n globalMap: %.3f ms ; "
         "\n======================\n\n",
         full_system_ms7);
+
+
+    async_tasks.push(std::async([&](){
+        auto full_system_start5 = std::chrono::high_resolution_clock::now();
+        // =========================== (Activate-)Marginalize Points =========================
+        // traditional bundle adjustment when marging all points
+        flagPointsForRemoval();
+        ef->dropPointsF();
+
+        getNullspaces(
+            ef->lastNullspaces_pose,
+            ef->lastNullspaces_scale,
+            ef->lastNullspaces_affA,
+            ef->lastNullspaces_affB);
+
+        ef->marginalizePointsF();
+
+        // =========================== Marginalize Frames =========================
+        {
+            unique_lock<mutex> lck(framesMutex);
+            for (unsigned int i = 0; i < frames.size(); i++)
+                if (frames[i]->frameHessian->flaggedForMarginalization) {
+                    LOG(INFO) << "marg frame " << frames[i]->id << endl;
+                    CHECK(frames[i] != coarseTracker->lastRef->frame);
+                    marginalizeFrame(frames[i]);
+                    i = 0;
+                }
+        }
+
+        // visualization
+        if (viewer)
+            viewer->publishKeyframes(frames, false, Hcalib->mpCH);
+
+        auto full_system_end5 = std::chrono::high_resolution_clock::now();
+        double full_system_ms5 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end5 - full_system_start5).count();
+        printf("\n======================"
+            "\n marginalize: %.3f ms ; "
+            "\n======================\n\n",
+            full_system_ms5);
+
+        return 0; 
+    }));
 
     LOG(INFO) << "make keyframe done" << endl;
 }
