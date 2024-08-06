@@ -8,8 +8,8 @@ namespace ldso {
     int pyrLevelsUsed = PYR_LEVELS;
     float setting_keyframesPerSecond = 0;
     bool setting_realTimeMaxKF = false;
-    float setting_maxShiftWeightT = 0.04f * (640 + 480);
-    float setting_maxShiftWeightR = 0.0f * (640 + 480);
+    float setting_maxShiftWeightT = 0.02f * (640 + 480);
+    float setting_maxShiftWeightR = 0.02f * (640 + 480);
     float setting_maxShiftWeightRT = 0.02f * (640 + 480);
     float setting_kfGlobalWeight = 1.0;
     float setting_maxAffineWeight = 2.0;

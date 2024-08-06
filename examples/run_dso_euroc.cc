@@ -257,7 +257,6 @@ void parseArgument(char *arg) {
 int main(int argc, char **argv) {
 
     FLAGS_colorlogtostderr = true;
-    setting_maxAffineWeight = 0.1;  // don't use affine brightness weight in Euroc!
 
     for (int i = 1; i < argc; i++)
         parseArgument(argv[i]);

@@ -155,12 +155,15 @@ void FullSystem::addActiveFrame(ImageAndExposure *image, int id)
                 setting_kfGlobalWeight * setting_maxShiftWeightRT * sqrtf((double) tres[3]) /
                     // 旋转和平移复合的光溜
                     (wG[0] + hG[0]);
-                // setting_kfGlobalWeight * setting_maxAffineWeight * fabs(logf((float) refToFh[0])); // 光度变换
 
             bool b1 = b > 2.0;
+            
             // if the current photometric error larger than the initial errors
             // 如果追踪当前帧计算得到的光度误差大于初始的误差的2被,那么需要插入关键帧
             bool b2 = 2 * coarseTracker->firstCoarseRMSE < tres[0];
+            
+            // 光度变换
+            // bool b3 = setting_kfGlobalWeight * setting_maxAffineWeight * fabs(logf((float) refToFh[0])) > 0.5;
 
             needToMakeKF = allFrameHistory.size() == 1 || b1 || b2;
         }
@@ -213,7 +216,6 @@ void FullSystem::deliverTrackedFrame(shared_ptr<FrameHessian> fh, bool needKF)
 
 Vec4 FullSystem::trackNewCoarse(shared_ptr<FrameHessian> fh)
 {
-
     assert(allFrameHistory.size() > 0);
 
     shared_ptr<FrameHessian> lastF = coarseTracker->lastRef;
@@ -236,118 +238,47 @@ Vec4 FullSystem::trackNewCoarse(shared_ptr<FrameHessian> fh)
         // use the last before last and the last before before last (well my English is really poor...)
         shared_ptr<Frame> slast = allFrameHistory[allFrameHistory.size() - 2];
         shared_ptr<Frame> sprelast = allFrameHistory[allFrameHistory.size() - 3];
-
-        SE3 slast_2_sprelast;
-        SE3 lastF_2_slast;
-
-        { // lock on global pose consistency!
-            unique_lock<mutex> crlock(shellPoseMutex);
-            // 前两帧间的位移
-            slast_2_sprelast = sprelast->getPose() * slast->getPose().inverse();
-            // 前一帧相对于上个关键帧的位移
-            lastF_2_slast = slast->getPose() * lastF->frame->getPose().inverse();
-            aff_last_2_l = slast->aff_g2l;
-        }
-        SE3 fh_2_slast = slast_2_sprelast; // assumed to be the same as fh_2_slast.
-
-        // get last delta-movement.
-        lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast); // assume constant motion.
-        lastF_2_fh_tries.push_back(fh_2_slast.inverse() * fh_2_slast.inverse() *
-            lastF_2_slast); // assume double motion (frame skipped)
-        lastF_2_fh_tries.push_back(
-            SE3::exp(fh_2_slast.log() * 0.5).inverse() * lastF_2_slast); // assume half motion.
-        lastF_2_fh_tries.push_back(lastF_2_slast);                       // assume zero motion.
-        lastF_2_fh_tries.push_back(SE3());                               // assume zero motion FROM KF.
-
-        // just try a TON of different initializations (all rotations). In the end,
-        // if they don't work they will only be tried on the coarsest level, which is super fast anyway.
-        // also, if tracking rails here we loose, so we really, really want to avoid that.
-        // the number the disturbs is 3 * (3*3*3 -1) = 3*26
-        for (float rotDelta = 0.02;
-             rotDelta < 0.05; rotDelta += 0.01) { // TODO changed this into +=0.01 where DSO writes ++
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, rotDelta, 0, 0),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, 0, rotDelta, 0),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, 0, 0, rotDelta),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, -rotDelta, 0, 0),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, 0, -rotDelta, 0),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, 0, 0, -rotDelta),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, 0),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, 0, rotDelta, rotDelta),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, rotDelta, 0, rotDelta),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, 0),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, 0, -rotDelta, rotDelta),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, -rotDelta, 0, rotDelta),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, 0),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, 0, rotDelta, -rotDelta),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, rotDelta, 0, -rotDelta),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, 0),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, 0, -rotDelta, -rotDelta),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, -rotDelta, 0, -rotDelta),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, -rotDelta),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, -rotDelta, -rotDelta, rotDelta),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, -rotDelta),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, -rotDelta, rotDelta, rotDelta),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, -rotDelta),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, rotDelta, -rotDelta, rotDelta),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, -rotDelta),
-                    Vec3(0, 0, 0))); // assume constant motion.
-            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast *
-                SE3(Sophus::Quaterniond(1, rotDelta, rotDelta, rotDelta),
-                    Vec3(0, 0, 0))); // assume constant motion.
-        }
-
         if (!slast->poseValid || !sprelast->poseValid || !lastF->frame->poseValid) {
             lastF_2_fh_tries.clear();
             lastF_2_fh_tries.push_back(SE3());
+        }else{
+            SE3 slast_2_sprelast;
+            SE3 lastF_2_slast;
+
+            { // lock on global pose consistency!
+                unique_lock<mutex> crlock(shellPoseMutex);
+                // 前两帧间的位移
+                slast_2_sprelast = sprelast->getPose() * slast->getPose().inverse();
+                // 前一帧相对于上个关键帧的位移
+                lastF_2_slast = slast->getPose() * lastF->frame->getPose().inverse();
+                aff_last_2_l = slast->aff_g2l;
+            }
+            SE3 fh_2_slast = slast_2_sprelast; // assumed to be the same as fh_2_slast.
+
+            // get last delta-movement.
+            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast); // assume constant motion.
+            lastF_2_fh_tries.push_back(fh_2_slast.inverse() * fh_2_slast.inverse() *
+                lastF_2_slast); // assume double motion (frame skipped)
+            lastF_2_fh_tries.push_back(
+                SE3::exp(fh_2_slast.log() * 0.5).inverse() * lastF_2_slast); // assume half motion.
+            lastF_2_fh_tries.push_back(lastF_2_slast);                       // assume zero motion.
+            lastF_2_fh_tries.push_back(SE3());
+
+            for (float rotDelta = 0.02; rotDelta < 0.05; rotDelta += 0.01) {
+                // Iterate over the combinations of rotations
+                for (int dx = -1; dx <= 1; dx += 1) {
+                    for (int dy = -1; dy <= 1; dy += 1) {
+                        for (int dz = -1; dz <= 1; dz += 1) {
+                            if (dx == 0 && dy == 0 && dz == 0) continue;
+                            // Create the rotation quaternion
+                            Sophus::Quaterniond quaternion(1, dx * rotDelta, dy * rotDelta, dz * rotDelta);
+                            // Create the SE3 object and add it to the vector
+                            SE3 se3_object = fh_2_slast.inverse() * lastF_2_slast * SE3(quaternion, Vec3(0, 0, 0));
+                            lastF_2_fh_tries.push_back(se3_object);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -362,6 +293,12 @@ Vec4 FullSystem::trackNewCoarse(shared_ptr<FrameHessian> fh)
     Vec5 achievedRes = Vec5::Constant(NAN);
     bool haveOneGood = false;
     int tryIterations = 0;
+
+    while(async_tasks.size() > 0){
+        auto &fut = async_tasks.front();
+        fut.get();
+        async_tasks.pop();
+    }
 
     for (unsigned int i = 0; i < lastF_2_fh_tries.size(); i++) {
 
@@ -671,15 +608,7 @@ void FullSystem::makeKeyFrame(shared_ptr<FrameHessian> fh)
         loopClosing->InsertKeyFrame(frame);
     }
 
-    auto full_system_end7 = std::chrono::high_resolution_clock::now();
-    double full_system_ms7 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end7 - full_system_end6).count();
-    printf("\n======================"
-        "\n globalMap: %.3f ms ; "
-        "\n======================\n\n",
-        full_system_ms7);
-
-
-    async_tasks.push(std::async([&](){
+    async_tasks.push(std::async(std::launch::async, [&](){
         auto full_system_start5 = std::chrono::high_resolution_clock::now();
         // =========================== (Activate-)Marginalize Points =========================
         // traditional bundle adjustment when marging all points
@@ -717,8 +646,8 @@ void FullSystem::makeKeyFrame(shared_ptr<FrameHessian> fh)
             "\n======================\n\n",
             full_system_ms5);
 
-        return 0; 
-    }));
+        
+    return 0; }));
 
     LOG(INFO) << "make keyframe done" << endl;
 }
@@ -736,7 +665,6 @@ void FullSystem::makeNonKeyFrame(shared_ptr<FrameHessian> &fh)
 
 void FullSystem::marginalizeFrame(shared_ptr<Frame> &frame)
 {
-
     // marginalize or remove all this frames points
     ef->marginalizeFrame(frame->frameHessian);
 
@@ -913,10 +841,7 @@ float FullSystem::optimize(int mnumOptIts)
 
     auto full_system_end = std::chrono::high_resolution_clock::now();
     double full_system_ms = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end - full_system_start).count();
-    printf("\n======================"
-        "\n activeResiduals: %.3f ms ; "
-        "\n======================\n\n",
-        full_system_ms);
+    printf("optimize --> activeResiduals: %.3f ms ; \n", full_system_ms);
 
     LOG(INFO) << "active residuals: " << activeResiduals.size() << endl;
     // step3: 计光度残差的雅克比矩阵J_I, J_geo, J_photo 和 error,同时剔除外点到I0, I1的约束
@@ -936,10 +861,7 @@ float FullSystem::optimize(int mnumOptIts)
 
     auto full_system_end1 = std::chrono::high_resolution_clock::now();
     double full_system_ms1 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end1- full_system_end).count();
-    printf("\n======================"
-        "\n threadReduce: %.3f ms ; "
-        "\n======================\n\n",
-        full_system_ms1);
+    printf("optimize --> applyRes_Reductor: %.3f ms ; \n", full_system_ms1);
 
     printOptRes(lastEnergy, lastEnergyL, lastEnergyM, 0, 0, frames.back()->frameHessian->aff_g2l().a,
                 frames.back()->frameHessian->aff_g2l().b);
@@ -1017,10 +939,7 @@ float FullSystem::optimize(int mnumOptIts)
 
     auto full_system_end2 = std::chrono::high_resolution_clock::now();
     double full_system_ms2 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end2- full_system_end1).count();
-    printf("\n======================"
-        "\n LM: %.3f ms ; "
-        "\n======================\n\n",
-        full_system_ms2);
+    printf("optimize --> lm_opt: %.3f ms ; \n", full_system_ms2);
 
     Vec10 newStateZero = Vec10::Zero();
     newStateZero.segment<2>(6) = frames.back()->frameHessian->get_state().segment<2>(6);
@@ -1057,10 +976,7 @@ float FullSystem::optimize(int mnumOptIts)
 
     auto full_system_end3 = std::chrono::high_resolution_clock::now();
     double full_system_ms3 = 1.0f * std::chrono::duration_cast<std::chrono::milliseconds>(full_system_end3- full_system_end2).count();
-    printf("\n======================"
-        "\n setPoseOpti: %.3f ms ; "
-        "\n======================\n\n",
-        full_system_ms3);
+    printf("optimize --> setPoseOpti: %.3f ms ; \n", full_system_ms3);
 
     //step11: 返回激活点的平均能量
     return sqrtf((float) (lastEnergy[0] / (patternNum * ef->resInA)));
