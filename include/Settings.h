@@ -6,7 +6,7 @@
 namespace ldso {
 
     const int PYR_LEVELS = 3;  // total image pyramids, note not all are used during tracking
-    const int NUM_THREADS = 6;
+    const int NUM_THREADS = 8;
 
     // the config bits in solver
     const int SOLVER_SVD = 1;

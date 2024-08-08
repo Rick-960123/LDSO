@@ -20,6 +20,7 @@
 #include "FeatureDetector.h"
 #include "FeatureMatcher.h"
 #include "PixelSelector2.h"
+#include "internal/ThreadPool.h"
 
 #include "internal/IndexThreadReduce.h"
 #include "LoopClosing.h"
@@ -292,6 +293,8 @@ namespace ldso {
         shared_ptr<Camera> Hcalib = nullptr;    // calib information
 
     private:
+        shared_ptr<ThreadPool> thread_pool;
+
         std::queue<std::future<int>> async_tasks;
         // data
         // =================== changed by tracker-thread. protected by trackMutex ============

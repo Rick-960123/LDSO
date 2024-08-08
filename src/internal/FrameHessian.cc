@@ -54,9 +54,16 @@ namespace ldso {
             // make d0
             int w = wG[0];
             int h = hG[0];
-            for (int i = 0; i < w * h; i++) {
-                dI[i][0] = color[i];
-            }
+
+            thread_pool->calc([&](int start, int end){
+                    for (int i = start; i < end; i++) {
+                        dI[i][0] = color[i];
+                    }
+                }, 0, w * h);
+
+            // for (int i = 0; i < w * h; i++) {
+            //     dI[i][0] = color[i];
+            // }
 
             for (int lvl = 0; lvl < pyrLevelsUsed; lvl++) {
                 int wl = wG[lvl], hl = hG[lvl];
@@ -69,34 +76,65 @@ namespace ldso {
                     Eigen::Vector3f *dI_lm = dIp[lvlm1];
 
 
-                    for (int y = 0; y < hl; y++)
+                    thread_pool->calc([&](int start, int end){
+                        for (int y = start; y < end; y++)
                         for (int x = 0; x < wl; x++) {
                             dI_l[x + y * wl][0] = 0.25f * (dI_lm[2 * x + 2 * y * wlm1][0] +
                                                            dI_lm[2 * x + 1 + 2 * y * wlm1][0] +
                                                            dI_lm[2 * x + 2 * y * wlm1 + wlm1][0] +
                                                            dI_lm[2 * x + 1 + 2 * y * wlm1 + wlm1][0]);
                         }
+                    }, 0, hl);
+                    // for (int y = 0; y < hl; y++)
+                    //     for (int x = 0; x < wl; x++) {
+                    //         dI_l[x + y * wl][0] = 0.25f * (dI_lm[2 * x + 2 * y * wlm1][0] +
+                    //                                        dI_lm[2 * x + 1 + 2 * y * wlm1][0] +
+                    //                                        dI_lm[2 * x + 2 * y * wlm1 + wlm1][0] +
+                    //                                        dI_lm[2 * x + 1 + 2 * y * wlm1 + wlm1][0]);
+                    //     }
                 }
 
-                for (int idx = wl; idx < wl * (hl - 1); idx++) {
-                    float dx = 0.5f * (dI_l[idx + 1][0] - dI_l[idx - 1][0]);
-                    float dy = 0.5f * (dI_l[idx + wl][0] - dI_l[idx - wl][0]);
+                thread_pool->calc([&](int start, int end){
+                        for (int idx = start; idx < end; idx++) {
+                            float dx = 0.5f * (dI_l[idx + 1][0] - dI_l[idx - 1][0]);
+                            float dy = 0.5f * (dI_l[idx + wl][0] - dI_l[idx - wl][0]);
 
-                    if (std::isnan(dx) || std::fabs(dx) > 255.0) dx = 0;
-                    if (std::isnan(dy) || std::fabs(dy) > 255.0) dy = 0;
+                            if (std::isnan(dx) || std::fabs(dx) > 255.0) dx = 0;
+                            if (std::isnan(dy) || std::fabs(dy) > 255.0) dy = 0;
 
-                    dI_l[idx][1] = dx;
-                    dI_l[idx][2] = dy;
+                            dI_l[idx][1] = dx;
+                            dI_l[idx][2] = dy;
 
-                    dabs_l[idx] = dx * dx + dy * dy;
+                            dabs_l[idx] = dx * dx + dy * dy;
 
-                    if (setting_gammaWeightsPixelSelect == 1 && HCalib != 0) {
-                        float gw = HCalib->getBGradOnly((float) (dI_l[idx][0]));
-                        dabs_l[idx] *=
-                                gw * gw;    // convert to gradient of original color space (before removing response).
-                        // if (std::isnan(dabs_l[idx])) dabs_l[idx] = 0;
-                    }
-                }
+                            if (setting_gammaWeightsPixelSelect == 1 && HCalib != 0) {
+                                float gw = HCalib->getBGradOnly((float) (dI_l[idx][0]));
+                                dabs_l[idx] *=
+                                        gw * gw;    // convert to gradient of original color space (before removing response).
+                                // if (std::isnan(dabs_l[idx])) dabs_l[idx] = 0;
+                            }
+                        }
+                    }, wl, wl * (hl - 1));
+
+                // for (int idx = wl; idx < wl * (hl - 1); idx++) {
+                //     float dx = 0.5f * (dI_l[idx + 1][0] - dI_l[idx - 1][0]);
+                //     float dy = 0.5f * (dI_l[idx + wl][0] - dI_l[idx - wl][0]);
+
+                //     if (std::isnan(dx) || std::fabs(dx) > 255.0) dx = 0;
+                //     if (std::isnan(dy) || std::fabs(dy) > 255.0) dy = 0;
+
+                //     dI_l[idx][1] = dx;
+                //     dI_l[idx][2] = dy;
+
+                //     dabs_l[idx] = dx * dx + dy * dy;
+
+                //     if (setting_gammaWeightsPixelSelect == 1 && HCalib != 0) {
+                //         float gw = HCalib->getBGradOnly((float) (dI_l[idx][0]));
+                //         dabs_l[idx] *=
+                //                 gw * gw;    // convert to gradient of original color space (before removing response).
+                //         // if (std::isnan(dabs_l[idx])) dabs_l[idx] = 0;
+                //     }
+                // }
             }
 
             // === debug stuffs === //

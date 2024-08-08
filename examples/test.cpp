@@ -19,7 +19,7 @@
 
 class ThreadPool {
 public:
-    ThreadPool(size_t numThreads) : stop(false), numTasks(0) {
+    ThreadPool(size_t numThreads) : stop(false), numTasks(0), numThreads(numThreads) {
         for (size_t i = 0; i < numThreads; ++i) {
             threads.emplace_back(
                 [this] {
@@ -55,6 +55,20 @@ public:
         condition.notify_one();
     }
 
+    template<class F, class vec>
+    void calc(F&& f, vec& data, int size){
+        for (int i = 0; i < numThreads; ++i) {
+            int start = size/numThreads * i;
+            int end = size/numThreads* ( i + 1);
+            if (i == 15) end = size;
+            enqueue(f, start, end, std::ref(data));
+        }
+
+        while (!isFinished()) {
+            std::this_thread::sleep_for(std::chrono::microseconds(10));
+        }
+    }
+
     bool isFinished() const {
         return numTasks == 0;
     }
@@ -76,6 +90,7 @@ private:
     std::condition_variable condition;
     std::atomic<int> numTasks;
     bool stop;
+    int numThreads;
 };
 
 void parallelTask(int& start, int& end, std::vector<int>& test_v) {
@@ -87,7 +102,7 @@ void parallelTask(int& start, int& end, std::vector<int>& test_v) {
 int main(int argc, char* argv[])
 {
 
-    int size = 5000000;
+    int size = 500000;
     printf("vector size %d\n", size);
 
 	std::vector<int> test_v(size);
@@ -155,16 +170,7 @@ int main(int argc, char* argv[])
 
 	auto m_StartTimepoint3 = std::chrono::high_resolution_clock::now();
 
-	for (int i = 0; i < 16; ++i) {
-		int start = size/16 * i;
-		int end = size/16* ( i + 1);
-		if (i == 15) end = size;
-        pool.enqueue(parallelTask, start, end, std::ref(test_v3));
-    }
-
-	while (!pool.isFinished()) {
-        std::this_thread::sleep_for(std::chrono::microseconds(10));
-    }
+	pool.calc(parallelTask, test_v3, test_v3.size());
 
     auto endTimepoint3 = std::chrono::high_resolution_clock::now();
 	auto startNs3 = std::chrono::time_point_cast<std::chrono::nanoseconds>(m_StartTimepoint3).time_since_epoch().count();

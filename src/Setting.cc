@@ -59,7 +59,7 @@ namespace ldso {
     // 0 = nothing.
     // 1 = apply inv. response.
     // 2 = apply inv. response & remove V.
-    int setting_photometricCalibration = 2;
+    int setting_photometricCalibration = 0;
 
     bool setting_useExposure = true;
     float setting_affineOptModeA = 1e12;                    //-1: fix. >=0: optimize (with prior, if > 0).
@@ -122,7 +122,7 @@ namespace ldso {
     bool setting_fullResetRequested = false;
     bool setting_debugout_runquiet = false;
     bool setting_pause = false;
-    int setting_pointSelection = 0;
+    int setting_pointSelection = 1;
     int sparsityFactor = 5;          // not actually a setting, only some legacy stuff for coarse initializer.
 
     bool setting_enableLoopClosing = false;

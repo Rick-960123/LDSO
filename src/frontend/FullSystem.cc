@@ -51,6 +51,7 @@ FullSystem::FullSystem(shared_ptr<ORBVocabulary> voc)
     pixelSelector = shared_ptr<PixelSelector>(new PixelSelector(wG[0], hG[0]));
     selectionMap = new float[wG[0] * hG[0]];
 
+    thread_pool = shared_ptr<ThreadPool>(new ThreadPool(NUM_THREADS));
     if (setting_enableLoopClosing) {
         loopClosing = shared_ptr<LoopClosing>(new LoopClosing(this));
         if (setting_fastLoopClosing)
@@ -156,7 +157,7 @@ void FullSystem::addActiveFrame(ImageAndExposure *image, int id)
             //         // 旋转和平移复合的光溜
             //         (wG[0] + hG[0]);
 
-            bool b1 = sqrtf((double) tres[3]) > 30.0;
+            bool b1 = sqrtf((double) tres[3]) > 50.0;
 
             // if the current photometric error larger than the initial errors
             // 如果追踪当前帧计算得到的光度误差大于初始的误差的2被,那么需要插入关键帧
@@ -1304,6 +1305,8 @@ void FullSystem::activatePointsMT()
 
     vector<shared_ptr<PointHessian>> optimized;
     optimized.resize(toOptimize.size());
+
+    printf("toOptimize.size(): %d\n", toOptimize.size());
     //step4: 将候选点active point 转化为真正是的 active point
     // this will actually turn immature points into point hessians
     if (multiThreading) {

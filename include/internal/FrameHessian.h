@@ -8,6 +8,7 @@
 #include "AffLight.h"
 
 #include "internal/FrameFramePrecalc.h"
+#include "internal/ThreadPool.h"
 
 using namespace std;
 
@@ -30,6 +31,7 @@ namespace ldso {
 
             FrameHessian(shared_ptr<Frame> frame) {
                 this->frame = frame;
+                thread_pool = shared_ptr<ThreadPool>(new ThreadPool(NUM_THREADS));
             }
 
             ~FrameHessian() {
@@ -168,6 +170,7 @@ namespace ldso {
             // Data
             int frameID = 0;              // key-frame ID, will be set when adding new keyframes
             shared_ptr<Frame> frame = nullptr;    // link to original frame
+            shared_ptr<ThreadPool> thread_pool;
 
             // internal structures used in DSO
             // image pyramid and gradient image
