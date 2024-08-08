@@ -157,7 +157,7 @@ void FullSystem::addActiveFrame(ImageAndExposure *image, int id)
             //         // 旋转和平移复合的光溜
             //         (wG[0] + hG[0]);
 
-            bool b1 = sqrtf((double) tres[3]) > 50.0;
+            bool b1 = sqrtf((double) tres[3]) > 60.0;
 
             // if the current photometric error larger than the initial errors
             // 如果追踪当前帧计算得到的光度误差大于初始的误差的2被,那么需要插入关键帧
@@ -225,8 +225,7 @@ Vec4 FullSystem::trackNewCoarse(shared_ptr<FrameHessian> fh)
     AffLight aff_last_2_l = AffLight(0, 0);
 
     // try a lot of pose values and see which is the best
-    std::vector<SE3, Eigen::aligned_allocator<SE3>>
-        lastF_2_fh_tries;
+    std::vector<SE3, Eigen::aligned_allocator<SE3>> lastF_2_fh_tries;
 
     lastF_2_fh_tries.reserve(100);
     
@@ -1168,29 +1167,57 @@ void FullSystem::traceNewCoarse(shared_ptr<FrameHessian> fh)
                                                 fh->aff_g2l())
             .cast<float>();
         //Step4： 遍历host frame 中的feature
-        for (auto feat : fr->features) {
-            // update the status of immuature points
-            // 判断feature是否是未成熟点
-            if (feat->status == Feature::FeatureStatus::IMMATURE && feat->ip) {
-                // update the immature points
-                shared_ptr<ImmaturePoint> ph = feat->ip;
-                ph->traceOn(fh, KRKi, Kt, aff, Hcalib->mpCH);
 
-                if (ph->lastTraceStatus == ImmaturePointStatus::IPS_GOOD)
-                    trace_good++;
-                if (ph->lastTraceStatus == ImmaturePointStatus::IPS_BADCONDITION)
-                    trace_badcondition++;
-                if (ph->lastTraceStatus == ImmaturePointStatus::IPS_OOB)
-                    trace_oob++;
-                if (ph->lastTraceStatus == ImmaturePointStatus::IPS_OUTLIER)
-                    trace_out++;
-                if (ph->lastTraceStatus == ImmaturePointStatus::IPS_SKIPPED)
-                    trace_skip++;
-                if (ph->lastTraceStatus == ImmaturePointStatus::IPS_UNINITIALIZED)
-                    trace_uninitialized++;
-                trace_total++;
-            }
-        }
+        thread_pool->calc([&](int start, int end){
+                for (int i = start; i< end; i++) {
+                    auto& feat = fr->features[i];
+                    // update the status of immuature points
+                    // 判断feature是否是未成熟点
+                    if (feat->status == Feature::FeatureStatus::IMMATURE && feat->ip) {
+                        // update the immature points
+                        shared_ptr<ImmaturePoint> ph = feat->ip;
+                        ph->traceOn(fh, KRKi, Kt, aff, Hcalib->mpCH);
+
+                        if (ph->lastTraceStatus == ImmaturePointStatus::IPS_GOOD)
+                            trace_good++;
+                        if (ph->lastTraceStatus == ImmaturePointStatus::IPS_BADCONDITION)
+                            trace_badcondition++;
+                        if (ph->lastTraceStatus == ImmaturePointStatus::IPS_OOB)
+                            trace_oob++;
+                        if (ph->lastTraceStatus == ImmaturePointStatus::IPS_OUTLIER)
+                            trace_out++;
+                        if (ph->lastTraceStatus == ImmaturePointStatus::IPS_SKIPPED)
+                            trace_skip++;
+                        if (ph->lastTraceStatus == ImmaturePointStatus::IPS_UNINITIALIZED)
+                            trace_uninitialized++;
+                        trace_total++;
+                    }
+                }
+            }, 0, fr->features.size());
+
+        // for (auto feat : fr->features) {
+        //     // update the status of immuature points
+        //     // 判断feature是否是未成熟点
+        //     if (feat->status == Feature::FeatureStatus::IMMATURE && feat->ip) {
+        //         // update the immature points
+        //         shared_ptr<ImmaturePoint> ph = feat->ip;
+        //         ph->traceOn(fh, KRKi, Kt, aff, Hcalib->mpCH);
+
+        //         if (ph->lastTraceStatus == ImmaturePointStatus::IPS_GOOD)
+        //             trace_good++;
+        //         if (ph->lastTraceStatus == ImmaturePointStatus::IPS_BADCONDITION)
+        //             trace_badcondition++;
+        //         if (ph->lastTraceStatus == ImmaturePointStatus::IPS_OOB)
+        //             trace_oob++;
+        //         if (ph->lastTraceStatus == ImmaturePointStatus::IPS_OUTLIER)
+        //             trace_out++;
+        //         if (ph->lastTraceStatus == ImmaturePointStatus::IPS_SKIPPED)
+        //             trace_skip++;
+        //         if (ph->lastTraceStatus == ImmaturePointStatus::IPS_UNINITIALIZED)
+        //             trace_uninitialized++;
+        //         trace_total++;
+        //     }
+        // }
     }
 }
 
@@ -1306,7 +1333,6 @@ void FullSystem::activatePointsMT()
     vector<shared_ptr<PointHessian>> optimized;
     optimized.resize(toOptimize.size());
 
-    printf("toOptimize.size(): %d\n", toOptimize.size());
     //step4: 将候选点active point 转化为真正是的 active point
     // this will actually turn immature points into point hessians
     if (multiThreading) {

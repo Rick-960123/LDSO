@@ -77,8 +77,8 @@ void settingsDefault(int preset) {
         playbackSpeed = (preset == 2 ? 0 : 5);
         setting_desiredImmatureDensity = 600;
         setting_desiredPointDensity = 800;
-        setting_minFrames = 3;
-        setting_maxFrames = 5;
+        setting_minFrames = 1;
+        setting_maxFrames = 3;
         setting_maxOptIterations = 3;
         setting_minOptIterations = 1;
 

@@ -32,7 +32,7 @@ namespace ldso {
     float setting_maxLogAffFacInWindow = 0.7;
     int setting_minFrames = 5;
     int setting_maxFrames = 7;
-    int setting_minFrameAge = 1;
+    int setting_minFrameAge = 10;
     int setting_maxOptIterations = 6;
     int setting_minOptIterations = 1;
     float setting_thOptIterations = 1.2;
