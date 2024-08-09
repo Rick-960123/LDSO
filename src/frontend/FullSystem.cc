@@ -156,9 +156,9 @@ void FullSystem::addActiveFrame(ImageAndExposure *image, int id)
                 setting_kfGlobalWeight * setting_maxShiftWeightRT * sqrtf((double) tres[3]) /
                     // 旋转和平移复合的光溜
                     (wG[0] + hG[0]);
-            bool b1 = b > 2.0;
+            // bool b1 = b > 1.8;
 
-            // bool b1 = sqrtf((double) tres[3]) > 60.0;
+            bool b1 = sqrtf((double) tres[3]) > 45.0;
 
             // if the current photometric error larger than the initial errors
             // 如果追踪当前帧计算得到的光度误差大于初始的误差的2被,那么需要插入关键帧

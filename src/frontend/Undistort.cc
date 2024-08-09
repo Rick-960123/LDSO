@@ -399,7 +399,55 @@ namespace ldso {
                 }
             }
 
+#ifdef Enable_ThreadPool
+            thread_pool->calc(
+                [&](int start, int end){
+                for (int idx = end - 1; idx >= start; idx--) {
+                    // get interp. values
+                    float xx = remapX[idx];
+                    float yy = remapY[idx];
 
+                    if (benchmark_varNoise > 0) {
+                        float deltax = getInterpolatedElement11BiCub(noiseMapX,
+                                                                    4 + (xx / (float) wOrg) * benchmark_noiseGridsize,
+                                                                    4 + (yy / (float) hOrg) * benchmark_noiseGridsize,
+                                                                    benchmark_noiseGridsize + 8);
+                        float deltay = getInterpolatedElement11BiCub(noiseMapY,
+                                                                    4 + (xx / (float) wOrg) * benchmark_noiseGridsize,
+                                                                    4 + (yy / (float) hOrg) * benchmark_noiseGridsize,
+                                                                    benchmark_noiseGridsize + 8);
+                        float x = idx % w + deltax;
+                        float y = idx / w + deltay;
+                        if (x < 0.01) x = 0.01;
+                        if (y < 0.01) y = 0.01;
+                        if (x > w - 1.01) x = w - 1.01;
+                        if (y > h - 1.01) y = h - 1.01;
+
+                        xx = getInterpolatedElement(remapX, x, y, w);
+                        yy = getInterpolatedElement(remapY, x, y, w);
+                    }
+                    if (xx < 0)
+                        out_data[idx] = 0;
+                    else {
+                        // get integer and rational parts
+                        int xxi = xx;
+                        int yyi = yy;
+                        xx -= xxi;
+                        yy -= yyi;
+                        float xxyy = xx * yy;
+
+                        // get array base pointer
+                        const float *src = in_data + xxi + yyi * wOrg;
+
+                        // interpolate (bilinear)
+                        out_data[idx] = xxyy * src[1 + wOrg]
+                                        + (yy - xxyy) * src[wOrg]
+                                        + (xx - xxyy) * src[1]
+                                        + (1 - xx - yy + xxyy) * src[0];
+                    }
+                }        
+            }, 0, w * h);
+#else
             for (int idx = w * h - 1; idx >= 0; idx--) {
                 // get interp. values
                 float xx = remapX[idx];
@@ -424,8 +472,6 @@ namespace ldso {
                     xx = getInterpolatedElement(remapX, x, y, w);
                     yy = getInterpolatedElement(remapY, x, y, w);
                 }
-
-
                 if (xx < 0)
                     out_data[idx] = 0;
                 else {
@@ -446,7 +492,7 @@ namespace ldso {
                                     + (1 - xx - yy + xxyy) * src[0];
                 }
             }
-
+#endif
             if (benchmark_varNoise > 0) {
                 delete[] noiseMapX;
                 delete[] noiseMapY;
@@ -871,6 +917,7 @@ namespace ldso {
 
         valid = true;
 
+        thread_pool = std::shared_ptr<ldso::internal::ThreadPool>(new ThreadPool(NUM_THREADS));
 
         printf("\nRectified Kamera Matrix:\n");
         std::cout << K << "\n\n";
@@ -931,6 +978,7 @@ namespace ldso {
             readFromFile(configFileName, 8);
         else
             readFromFile(configFileName, 8, "RadTan ");
+
     }
 
     UndistortRadTan::~UndistortRadTan() {

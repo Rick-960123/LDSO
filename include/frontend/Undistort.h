@@ -30,6 +30,7 @@
 #include "frontend/ImageAndExposure.h"
 #include "NumTypes.h"
 #include "MinimalImage.h"
+#include "internal/ThreadPool.h"
 
 namespace ldso {
     class PhotometricUndistorter {
@@ -104,6 +105,7 @@ namespace ldso {
 
         float *remapX;
         float *remapY;
+        std::shared_ptr<ldso::internal::ThreadPool> thread_pool;
 
         void applyBlurNoise(float *img) const;
 
