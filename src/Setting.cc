@@ -8,9 +8,9 @@ namespace ldso {
     int pyrLevelsUsed = PYR_LEVELS;
     float setting_keyframesPerSecond = 0;
     bool setting_realTimeMaxKF = false;
-    float setting_maxShiftWeightT = 0.02f * (640 + 480);
+    float setting_maxShiftWeightT = 0.04f * (640 + 480);
     float setting_maxShiftWeightR = 0.00f * (640 + 480); //没用
-    float setting_maxShiftWeightRT = 0.04f * (640 + 480);
+    float setting_maxShiftWeightRT = 0.02f * (640 + 480);
     float setting_kfGlobalWeight = 1.0;
     float setting_maxAffineWeight = 2.0;
     float setting_idepthFixPrior = 50 * 50;
@@ -32,7 +32,7 @@ namespace ldso {
     float setting_maxLogAffFacInWindow = 0.7;
     int setting_minFrames = 5;
     int setting_maxFrames = 7;
-    int setting_minFrameAge = 10;
+    int setting_minFrameAge = 1;
     int setting_maxOptIterations = 6;
     int setting_minOptIterations = 1;
     float setting_thOptIterations = 1.2;
@@ -85,7 +85,7 @@ namespace ldso {
     float setting_fixGradTH = -1;
     float setting_gradDownweightPerLevel = 0.75;
     bool setting_selectDirectionDistribution = true;
-    int setting_pixelSelectionUseFast = 0;
+    int setting_pixelSelectionUseFast = 1;
     float setting_trace_stepsize = 1.0;                     // stepsize for initial discrete search.
     int setting_trace_GNIterations = 3;                     // max # GN iterations
     float setting_trace_GNThreshold = 0.1;                  // GN stop after this stepsize.
@@ -122,7 +122,7 @@ namespace ldso {
     bool setting_fullResetRequested = false;
     bool setting_debugout_runquiet = false;
     bool setting_pause = false;
-    int setting_pointSelection = 1;
+    int setting_pointSelection = 0;
     int sparsityFactor = 5;          // not actually a setting, only some legacy stuff for coarse initializer.
 
     bool setting_enableLoopClosing = false;
