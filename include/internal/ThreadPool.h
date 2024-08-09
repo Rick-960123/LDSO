@@ -20,6 +20,8 @@
 using namespace std;
 using namespace std::placeholders;
 
+#define Enable_ThreadPool 1.0
+
 namespace ldso {
     namespace internal {
         class ThreadPool {

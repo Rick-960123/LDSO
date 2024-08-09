@@ -1168,6 +1168,8 @@ void FullSystem::traceNewCoarse(shared_ptr<FrameHessian> fh)
             .cast<float>();
         //Step4： 遍历host frame 中的feature
 
+#ifdef Enable_ThreadPool
+
         thread_pool->calc([&](int start, int end){
             for (int i = start; i< end; i++) {
                 auto& feat = fr->features[i];
@@ -1195,29 +1197,34 @@ void FullSystem::traceNewCoarse(shared_ptr<FrameHessian> fh)
             }
         }, 0, fr->features.size());
 
-        // for (auto feat : fr->features) {
-        //     // update the status of immuature points
-        //     // 判断feature是否是未成熟点
-        //     if (feat->status == Feature::FeatureStatus::IMMATURE && feat->ip) {
-        //         // update the immature points
-        //         shared_ptr<ImmaturePoint> ph = feat->ip;
-        //         ph->traceOn(fh, KRKi, Kt, aff, Hcalib->mpCH);
+#else
 
-        //         if (ph->lastTraceStatus == ImmaturePointStatus::IPS_GOOD)
-        //             trace_good++;
-        //         if (ph->lastTraceStatus == ImmaturePointStatus::IPS_BADCONDITION)
-        //             trace_badcondition++;
-        //         if (ph->lastTraceStatus == ImmaturePointStatus::IPS_OOB)
-        //             trace_oob++;
-        //         if (ph->lastTraceStatus == ImmaturePointStatus::IPS_OUTLIER)
-        //             trace_out++;
-        //         if (ph->lastTraceStatus == ImmaturePointStatus::IPS_SKIPPED)
-        //             trace_skip++;
-        //         if (ph->lastTraceStatus == ImmaturePointStatus::IPS_UNINITIALIZED)
-        //             trace_uninitialized++;
-        //         trace_total++;
-        //     }
-        // }
+        for (auto feat : fr->features) {
+            // update the status of immuature points
+            // 判断feature是否是未成熟点
+            if (feat->status == Feature::FeatureStatus::IMMATURE && feat->ip) {
+                // update the immature points
+                shared_ptr<ImmaturePoint> ph = feat->ip;
+                ph->traceOn(fh, KRKi, Kt, aff, Hcalib->mpCH);
+
+                if (ph->lastTraceStatus == ImmaturePointStatus::IPS_GOOD)
+                    trace_good++;
+                if (ph->lastTraceStatus == ImmaturePointStatus::IPS_BADCONDITION)
+                    trace_badcondition++;
+                if (ph->lastTraceStatus == ImmaturePointStatus::IPS_OOB)
+                    trace_oob++;
+                if (ph->lastTraceStatus == ImmaturePointStatus::IPS_OUTLIER)
+                    trace_out++;
+                if (ph->lastTraceStatus == ImmaturePointStatus::IPS_SKIPPED)
+                    trace_skip++;
+                if (ph->lastTraceStatus == ImmaturePointStatus::IPS_UNINITIALIZED)
+                    trace_uninitialized++;
+                trace_total++;
+            }
+        }
+
+#endif
+
     }
 }
 
@@ -1271,66 +1278,9 @@ void FullSystem::activatePointsMT()
         Mat33f KRKi = (coarseDistanceMap->K[1] * fhToNew.rotationMatrix().cast<float>() * coarseDistanceMap->Ki[0]);
         Vec3f Kt = (coarseDistanceMap->K[1] * fhToNew.translation().cast<float>());
 
-        // for (size_t i = 0; i < host->frame->features.size(); i++) {
-        //     shared_ptr<Feature> &feat = host->frame->features[i];
-        //     if (feat->status == Feature::FeatureStatus::IMMATURE && feat->ip) {
-
-        //         shared_ptr<Feature> &feat = host->frame->features[i];
-        //         shared_ptr<ImmaturePoint> &ph = host->frame->features[i]->ip;
-        //         ph->idxInImmaturePoints = i;
-
-        //         //step3.2.1 判断条件1 delete points that have never been traced successfully, or that are outlier on the last trace.
-        //         if (!std::isfinite(ph->idepth_max) || ph->lastTraceStatus == IPS_OUTLIER) {
-        //             feat->status = Feature::FeatureStatus::OUTLIER;
-        //             feat->ReleaseImmature();
-        //             continue;
-        //         }
-        //         //step3.2.2 判断条件2
-        //         bool canActivate = (ph->lastTraceStatus == IPS_GOOD || ph->lastTraceStatus == IPS_SKIPPED ||
-        //             ph->lastTraceStatus == IPS_BADCONDITION || ph->lastTraceStatus == IPS_OOB) &&
-        //             ph->lastTracePixelInterval < 8 && ph->quality > setting_minTraceQuality &&
-        //             (ph->idepth_max + ph->idepth_min) > 0;
-
-        //         if (!canActivate) {
-        //             // if point will be out afterwards, delete it instead.
-        //             // 如果immature point 所在的帧即将要被边缘化,或者上一次追踪状态为IPS_OOB, 那么将点标记为外点
-        //             if (ph->feature->host.lock()->frameHessian->flaggedForMarginalization ||
-        //                 ph->lastTraceStatus == IPS_OOB) {
-        //                 feat->status = Feature::FeatureStatus::OUTLIER;
-        //                 feat->ReleaseImmature();
-        //             }
-        //             continue;
-        //         }
-        //         //step3.2.3 判断条件3 使用距离图
-        //         // see if we need to activate point due to distance map.
-        //         Vec3f ptp = KRKi * Vec3f(feat->uv[0], feat->uv[1], 1) +
-        //             Kt * (0.5f * (ph->idepth_max + ph->idepth_min));
-        //         int u = ptp[0] / ptp[2] + 0.5f;
-        //         int v = ptp[1] / ptp[2] + 0.5f;
-
-        //         if ((u > 0 && v > 0 && u < wG[1] && v < hG[1])) {
-
-        //             float dist = coarseDistanceMap->fwdWarpedIDDistFinal[u + wG[1] * v] +
-        //                 (ptp[0] - floorf((float) (ptp[0])));
-
-        //             // NOTE: the shit my_type is used here, my_type 表示的feature在图像金字塔的层级
-        //             if (dist >= currentMinActDist * ph->my_type) {
-        //                 // 将当前点加入到距离图途中, 更近距离图
-        //                 coarseDistanceMap->addIntoDistFinal(u, v);
-        //                 // 将要转化为active point的 immature point 加入到toOptimize 数组中
-        //                 toOptimize.push_back(ph);
-        //             }
-        //         }
-        //         else {
-        //             // drop it
-        //             feat->status = Feature::FeatureStatus::OUTLIER;
-        //             feat->ReleaseImmature();
-        //         }
-        //     }
-        // }
-
+#ifdef Enable_ThreadPool
         std::mutex tmp_mutex; 
-        //step3.2 enumerate all immature points in host frame
+    // step3.2 enumerate all immature points in host frame
         thread_pool->calc([&](int start, int end){
             for (int i = start; i< end; i++) {
                 shared_ptr<Feature> &feat = host->frame->features[i];
@@ -1391,7 +1341,66 @@ void FullSystem::activatePointsMT()
                 }
             }
         }, 0, host->frame->features.size());
-    }
+#else
+        for (size_t i = 0; i < host->frame->features.size(); i++) {
+            shared_ptr<Feature> &feat = host->frame->features[i];
+            if (feat->status == Feature::FeatureStatus::IMMATURE && feat->ip) {
+
+                shared_ptr<Feature> &feat = host->frame->features[i];
+                shared_ptr<ImmaturePoint> &ph = host->frame->features[i]->ip;
+                ph->idxInImmaturePoints = i;
+
+                //step3.2.1 判断条件1 delete points that have never been traced successfully, or that are outlier on the last trace.
+                if (!std::isfinite(ph->idepth_max) || ph->lastTraceStatus == IPS_OUTLIER) {
+                    feat->status = Feature::FeatureStatus::OUTLIER;
+                    feat->ReleaseImmature();
+                    continue;
+                }
+                //step3.2.2 判断条件2
+                bool canActivate = (ph->lastTraceStatus == IPS_GOOD || ph->lastTraceStatus == IPS_SKIPPED ||
+                    ph->lastTraceStatus == IPS_BADCONDITION || ph->lastTraceStatus == IPS_OOB) &&
+                    ph->lastTracePixelInterval < 8 && ph->quality > setting_minTraceQuality &&
+                    (ph->idepth_max + ph->idepth_min) > 0;
+
+                if (!canActivate) {
+                    // if point will be out afterwards, delete it instead.
+                    // 如果immature point 所在的帧即将要被边缘化,或者上一次追踪状态为IPS_OOB, 那么将点标记为外点
+                    if (ph->feature->host.lock()->frameHessian->flaggedForMarginalization ||
+                        ph->lastTraceStatus == IPS_OOB) {
+                        feat->status = Feature::FeatureStatus::OUTLIER;
+                        feat->ReleaseImmature();
+                    }
+                    continue;
+                }
+                //step3.2.3 判断条件3 使用距离图
+                // see if we need to activate point due to distance map.
+                Vec3f ptp = KRKi * Vec3f(feat->uv[0], feat->uv[1], 1) +
+                    Kt * (0.5f * (ph->idepth_max + ph->idepth_min));
+                int u = ptp[0] / ptp[2] + 0.5f;
+                int v = ptp[1] / ptp[2] + 0.5f;
+
+                if ((u > 0 && v > 0 && u < wG[1] && v < hG[1])) {
+
+                    float dist = coarseDistanceMap->fwdWarpedIDDistFinal[u + wG[1] * v] +
+                        (ptp[0] - floorf((float) (ptp[0])));
+
+                    // NOTE: the shit my_type is used here, my_type 表示的feature在图像金字塔的层级
+                    if (dist >= currentMinActDist * ph->my_type) {
+                        // 将当前点加入到距离图途中, 更近距离图
+                        coarseDistanceMap->addIntoDistFinal(u, v);
+                        // 将要转化为active point的 immature point 加入到toOptimize 数组中
+                        toOptimize.push_back(ph);
+                    }
+                }
+                else {
+                    // drop it
+                    feat->status = Feature::FeatureStatus::OUTLIER;
+                    feat->ReleaseImmature();
+                }
+            }
+        }
+#endif
+    };
 
     vector<shared_ptr<PointHessian>> optimized;
     optimized.resize(toOptimize.size());
@@ -1407,6 +1416,7 @@ void FullSystem::activatePointsMT()
         activatePointsMT_Reductor(&optimized, &toOptimize, 0, toOptimize.size(), 0, 0);
     }
 
+#ifdef Enable_ThreadPool
     std::mutex tmp_mutex; 
     thread_pool->calc([&](int start, int end){
         for (int k = start; k< end; k++) {
@@ -1433,27 +1443,33 @@ void FullSystem::activatePointsMT()
             }
         }
     }, 0, toOptimize.size());
-    // for (size_t k = 0; k < toOptimize.size(); k++) {
-    //     shared_ptr<PointHessian> newpoint = optimized[k];
-    //     shared_ptr<ImmaturePoint> ph = toOptimize[k];
 
-    //     if (newpoint != nullptr) {
+#else
 
-    //         // remove the immature point
-    //         ph->feature->status = Feature::FeatureStatus::VALID;
+    for (size_t k = 0; k < toOptimize.size(); k++) {
+        shared_ptr<PointHessian> newpoint = optimized[k];
+        shared_ptr<ImmaturePoint> ph = toOptimize[k];
 
-    //         ph->feature->point->mpPH = newpoint;
-    //         ph->feature->ReleaseImmature();
-    //         newpoint->takeData();
+        if (newpoint != nullptr) {
 
-    //         for (auto r : newpoint->residuals)
-    //             ef->insertResidual(r);
-    //     }
-    //     else if (newpoint == nullptr || ph->lastTraceStatus == IPS_OOB) {
-    //         ph->feature->status = Feature::FeatureStatus::OUTLIER;
-    //         ph->feature->ReleaseImmature();
-    //     }
-    // }
+            // remove the immature point
+            ph->feature->status = Feature::FeatureStatus::VALID;
+
+            ph->feature->point->mpPH = newpoint;
+            ph->feature->ReleaseImmature();
+            newpoint->takeData();
+
+            for (auto r : newpoint->residuals)
+                ef->insertResidual(r);
+        }
+        else if (newpoint == nullptr || ph->lastTraceStatus == IPS_OOB) {
+            ph->feature->status = Feature::FeatureStatus::OUTLIER;
+            ph->feature->ReleaseImmature();
+        }
+    }
+
+#endif
+
 }
 
 void FullSystem::activatePointsMT_Reductor(
@@ -1681,21 +1697,24 @@ void FullSystem::removeOutliers()
 {
     int numPointsDropped = 0;
     for (auto &fr : frames) {
-        // thread_pool->calc([&](int start, int end){
-        //     for (int k = start; k< end; k++) {
-        //         auto &feat = fr->features[k];
-        //         if (feat->status == Feature::FeatureStatus::VALID && feat->point &&
-        //             feat->point->status == Point::PointStatus::ACTIVE) {
 
-        //             shared_ptr<PointHessian> ph = feat->point->mpPH;
-        //             if (ph->residuals.empty()) {
-        //                 ph->point->status = Point::PointStatus::OUTLIER;
-        //                 feat->status = Feature::FeatureStatus::OUTLIER;
-        //                 // numPointsDropped++;
-        //             }
-        //         }
-        //     }
-        // }, 0, fr->features.size());
+#ifdef Enable_ThreadPool
+        thread_pool->calc([&](int start, int end){
+            for (int k = start; k< end; k++) {
+                auto &feat = fr->features[k];
+                if (feat->status == Feature::FeatureStatus::VALID && feat->point &&
+                    feat->point->status == Point::PointStatus::ACTIVE) {
+
+                    shared_ptr<PointHessian> ph = feat->point->mpPH;
+                    if (ph->residuals.empty()) {
+                        ph->point->status = Point::PointStatus::OUTLIER;
+                        feat->status = Feature::FeatureStatus::OUTLIER;
+                        // numPointsDropped++;
+                    }
+                }
+            }
+        }, 0, fr->features.size());
+#else
         for (auto &feat : fr->features) {
             if (feat->status == Feature::FeatureStatus::VALID && feat->point &&
                 feat->point->status == Point::PointStatus::ACTIVE) {
@@ -1708,6 +1727,7 @@ void FullSystem::removeOutliers()
                 }
             }
         }
+#endif
     }
 
     // LOG(INFO) << "remove outliers done, outliers: " << numPointsDropped << endl;
@@ -1797,9 +1817,7 @@ Vec3 FullSystem::linearizeAll(bool fixLinearization)
 }
 
 void FullSystem::linearizeAll_Reductor(
-    bool fixLinearization, std::vector<shared_ptr<PointFrameResidual>>
-
-*toRemove,
+    bool fixLinearization, std::vector<shared_ptr<PointFrameResidual>> *toRemove,
     int min,
     int max, Vec10 *stats,
     int tid)
